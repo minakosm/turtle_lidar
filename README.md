@@ -17,7 +17,7 @@ A package containing library files and a test executable that implement the grou
 You can test the library using points from example/lidar.txt file and running:  
 ./TestExample  
 in the build directory  
-
+You can change the ground removing parameters by editing config.ini (no need to rebuild the whole project)  
 
 #### TODO:
 Clustering  
