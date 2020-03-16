@@ -1,14 +1,14 @@
 # Lidar Vision Pipeline 
 
-###### A package containing library files and a test executable that implement
-###### the ground removal algorithm for our vehicle
+#### A package containing library files and a test executable that implement
+#### the ground removal algorithm for our vehicle
 
-####Prerequisites:
+#### Prerequisites:
 Boost (Usually every Unix OS comes preinstalled with Boost)
 Eigen 3.3
 CMake 3.10 minimum
 
-####Installation instructions:
+#### Installation instructions:
 mkdir build
 cd build
 cmake ..
