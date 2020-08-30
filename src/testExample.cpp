@@ -1,78 +1,105 @@
+#include "settings.h"
+#include "PointcloudProcessing.h"
+#include "lines.h"
 #include "utils.h"
-#include "groundRemoval.h"
-#include "readMatrix.h"
-#include "readINI.h"
-#include <iostream>
-#include <chrono>
-#include <fstream>
-#include <vector>
+#include "bayes.h"
+
 #include <eigen3/Eigen/Dense>
+#include <iostream>
+#include <fstream>
+#include <chrono>
 
-using namespace Eigen;
 using namespace std;
+using namespace Eigen;
 
-int main() {    
-    MatrixXf data;
-//	string filename;
-//	cin >> filename;
-	read_matrix <float> ("../example/lidar.txt", data);
-	MatrixXf polar(data.col(0).size(),3);
-	VectorXf x(data.col(0).size());
-	VectorXf y(data.col(0).size());
-	VectorXf z(data.col(0).size());
-	x = data.col(0);
-	y = data.col(1);
-	z = data.col(2);
-	int segments;
-	int bins;
-	float filterBounds[6];
-	float groundParams[6];
-	readINIfile(filterBounds, groundParams, segments, bins);
+int main() {
+	Matrix <float, Dynamic, Dynamic> data;
+	read_matrix<float>("../example/lidar1.txt",data);
+	
+	VectorXf *x = new VectorXf(data.rows());
+	VectorXf *y = new VectorXf(data.rows());
+	VectorXf *z = new VectorXf(data.rows());
+	*x = data.col(0);
+	*y = data.col(1);
+	*z = data.col(2);
 	
 	auto a1 = chrono::high_resolution_clock::now();
-	polar = cart2pol(x, y, z);
+	PointcloudProcessing pcl(x,y,z);
 	auto a2 = chrono::high_resolution_clock::now();
-	cout << "--cart2pol duration = " << chrono::duration_cast<chrono::microseconds>( a2 - a1 ).count() << "μs" << endl;
-	cout << "Before filtering polar = " << polar.rows() << "x" << polar.cols() << endl;
+	cout << "--Declaration duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
 	
-	auto b1 = chrono::high_resolution_clock::now();
-	filterCylindrical(polar, filterBounds);
-	auto b2 = chrono::high_resolution_clock::now();
-	cout << "--filterCylindrical duration = " << chrono::duration_cast<chrono::microseconds>( b2 - b1 ).count() << "μs" << endl;
-	cout << "After filtering polar = " << polar.rows() << "x" << polar.cols() << endl;
+	//pcl.printSettings();
+	pcl.printPointcloudSize();
 	
-	auto c1 = chrono::high_resolution_clock::now();
-	Matrix <int, Dynamic, 2, RowMajor> partitionMatrix = calculatePartitionMatrix(polar, segments, bins);
-	auto c2 = chrono::high_resolution_clock::now();
-	cout << "--partitionMatrix calculation duration = " << chrono::duration_cast<chrono::microseconds>( c2 - c1 ).count() << "μs" << endl;
+	a1 = chrono::high_resolution_clock::now();
+	pcl.filter();
+	a2 = chrono::high_resolution_clock::now();
+	cout << "--Filter duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	pcl.printPointcloudSize();
+	//cout << *pcl.x << endl << endl << *pcl.y << endl << endl << *pcl.z << endl << endl << *pcl.azim << endl << endl << *pcl.r;
 	
-	auto d1 = chrono::high_resolution_clock::now();
-	Matrix <int, Dynamic, Dynamic, RowMajor> prototypePointsMatrix = calculatePrototypePoints(polar.col(2), segments, bins, partitionMatrix);
-	auto d2 = chrono::high_resolution_clock::now();
-	cout << "--prototypePointsMatrix calculation duration = " << chrono::duration_cast<chrono::microseconds>( d2 - d1 ).count() << "μs" << endl;
+	a1 = chrono::high_resolution_clock::now();
+	pcl.calculatePartitionMatrix();
+	a2 = chrono::high_resolution_clock::now();
+	cout << "--Partition Matrix duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
 	
-	auto e1 = chrono::high_resolution_clock::now();
-	Lines linesMatrix = groundLinesFit(polar.col(1), polar.col(2), prototypePointsMatrix, groundParams);
-	auto e2 = chrono::high_resolution_clock::now();
-	cout << "--groundLinesFit duration = " << chrono::duration_cast<chrono::microseconds>( e2 - e1 ).count() << "μs" << endl;
+	a1 = chrono::high_resolution_clock::now();
+	pcl.calculatePrototypePointsMatrix();
+	a2 = chrono::high_resolution_clock::now();
+	cout << "--Prototype Matrix duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
 	
-	auto f1 = chrono::high_resolution_clock::now();
-	Array <bool, Dynamic, 1>  groundVector = groundClassifier(linesMatrix, polar.col(1), polar.col(2), partitionMatrix);
-	auto f2 = chrono::high_resolution_clock::now();
-	cout << "--groundClassifier duration = " << chrono::duration_cast<chrono::microseconds>( f2 - f1 ).count() << "μs" << endl;
+	//cout << pcl.prototypePointsMatrix << std::endl;
 	
-	auto g1 = chrono::high_resolution_clock::now();
-	filterGround(polar, groundVector);
-	auto g2 = chrono::high_resolution_clock::now();
-	cout << "--filterGround duration = " << chrono::duration_cast<chrono::microseconds>( g2 - g1 ).count() << "μs" << endl;
-	cout << "After filtering ground polar = " << polar.rows() << "x" << polar.cols() << endl;
+	a1 = chrono::high_resolution_clock::now();
+	pcl.groundLinesFit();
+	a2 = chrono::high_resolution_clock::now();
+	cout << "--Ground Lines Fit duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
 	
-	cout << "Total duration = " << chrono::duration_cast<chrono::microseconds>( g2 - g1 ).count() +
-								   chrono::duration_cast<chrono::microseconds>( f2 - f1 ).count() + 
-								   chrono::duration_cast<chrono::microseconds>( e2 - e1 ).count() +
-								   chrono::duration_cast<chrono::microseconds>( d2 - d1 ).count() +
-								   chrono::duration_cast<chrono::microseconds>( c2 - c1 ).count() + 
-								   chrono::duration_cast<chrono::microseconds>( b2 - b1 ).count() + 
-								   chrono::duration_cast<chrono::microseconds>( a2 - a1 ).count() << "μs" << endl;
-    return 0;
+	//cout << pcl.lines << endl;
+	
+	a1 = chrono::high_resolution_clock::now();
+	pcl.groundClassifier();
+	a2 = chrono::high_resolution_clock::now();
+	cout << "--Ground Classifying duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	
+	a1 = chrono::high_resolution_clock::now();
+	pcl.filterGround();
+	a2 = chrono::high_resolution_clock::now();
+	cout << "--Filter Ground duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	
+	cout << "Non ground size = " << (pcl.getCart()).rows() << endl;
+	
+	a1 = chrono::high_resolution_clock::now();
+	pcl.nonGroundClustering();
+	a2 = chrono::high_resolution_clock::now();
+	cout << "--Clustering duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+
+	MatrixXf trainDataX;
+	VectorXi trainDataY;
+	read_matrix<float>("../gaussian-naive-bayes-classifier/trainDataX.txt", trainDataX);
+	read_vector<int>("../gaussian-naive-bayes-classifier/trainDataY.txt", trainDataY);
+	
+	a1 = chrono::high_resolution_clock::now();
+	GNBC nbc(trainDataX, trainDataY);
+	a2 = chrono::high_resolution_clock::now();
+	cout << "--GNBC declaration and training duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+    
+    a1 = chrono::high_resolution_clock::now();
+    Eigen::Array<bool, Eigen::Dynamic, 1> cones = pcl.clusterClassifier(nbc);
+    a2 = chrono::high_resolution_clock::now();
+    cout << "--Classifier duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+
+	//std::ofstream file1("groundArray.txt");
+	//if (file1.is_open())
+		//file1 << pcl.groundArray;
+    
+    std::ofstream file2("cart.txt");
+	if (file2.is_open())
+		file2 << (pcl.getCart());
+		
+	std::ofstream file3("clusters.txt");
+	if (file3.is_open())
+		file3 << (pcl.getClusters());
+	
+	return 0;
 }
