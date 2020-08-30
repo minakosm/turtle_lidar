@@ -1,6 +1,6 @@
 # Lidar Vision Pipeline 
 
-A package containing C++ library files and a test executable that implement a ground removal algorithm and provide cone detection (WIP) for our vehicle.  
+A package containing C++ library files and a test executable that implement a ground removal algorithm and provides cone detection (WIP) for our vehicle.  
 
 ![](https://i.imgur.com/bcOJtMK.png)
 
@@ -19,9 +19,8 @@ A package containing C++ library files and a test executable that implement a gr
 
 You can test the library using points from example/lidar.txt file by running:  
 ./TestExample  
-in the build directory. Two txt files are generated containing non-ground points and their corresponding cluster labels  
-You can change the ground removing parameters by editing config.ini (no need to rebuild the whole project)  
+in the build directory. You can change the pipeline parameters by editing config.ini (no need to rebuild the whole project)  
   
-#### TODO  
-Cone detection from clusters   
+#### TODO   
 ROS Wrapper  
+Cone color detection from cone clusters
