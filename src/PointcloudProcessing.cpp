@@ -365,42 +365,56 @@ void PointcloudProcessing::clustersVectorFun() {
 
 Eigen::Array <bool, Eigen::Dynamic, 1> PointcloudProcessing::clusterClassifier(GNBC &nbc) {
     Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero(numberOfClusters, 3);
-    Eigen::Array <bool, Eigen::Dynamic, 1> coneClusters = Eigen::Matrix<bool,Eigen::Dynamic,1>::Constant(numberOfClusters, false).array(); 
+    Eigen::Array <bool, Eigen::Dynamic, 1> coneClusters = Eigen::Matrix<bool,Eigen::Dynamic,1>::Constant(numberOfClusters, false).array();
     Eigen::Array <bool, Eigen::Dynamic, 1> ignoreClusters = Eigen::Matrix<bool, Eigen::Dynamic, 1>::Constant(numberOfClusters, false).array();
-    #pragma omp parallel for ordered num_threads(NUM_OF_THREADS) shared(X)
+    //#pragma omp parallel for ordered num_threads(NUM_OF_THREADS) shared(X)
         for(int i = 0; i < numberOfClusters; i++) {
             Eigen::VectorXf xCluster, yCluster, zCluster, xCluster2, yCluster2, zCluster2;
             Eigen::Array <bool, Eigen::Dynamic, 1> mask = (clusters.array() == i);
-            xCluster = sliceVector<float>(*x, mask);
-            if(xCluster.size() > clS.ignoreClusterPointsHigh || xCluster.size() < clS.ignoreClusterPointsLow) {
+            
+            
+            // START OF Cluster check and reconstruct section
+            zCluster = sliceVector<float>(*z, mask);
+            if(zCluster.size() > clS.ignoreClusterPointsHigh) {
                 ignoreClusters(i) = true;
                 continue;
             }
+            xCluster = sliceVector<float>(*x, mask);
             yCluster = sliceVector<float>(*y, mask);
-            zCluster = sliceVector<float>(*z, mask);
+            float meanZ = zCluster.mean();
             if(clS.reconstructCluster == true) {
-                int clusterSize = xCluster.size();
-                float meanZ = zCluster.sum() / clusterSize;
-                if(meanZ < clS.furtherReconstructDist) {
-                    float meanX = xCluster.sum() / clusterSize;
-                    float meanY = yCluster.sum() / clusterSize;
-                    mask = (mask.cast<int>() + ( ((((x->array()-meanX)*(x->array()-meanX) + (y->array()-meanY)*(y->array()-meanY)) < clS.r*clS.r).cast<int>()) * ( (((z->array()-meanZ) > clS.zMin).cast<int>()) * (((z->array()-meanZ) < clS.zMax).cast<int>()) ).cast<int>())).cast<bool>();
-                    xCluster2 = sliceVector<float>(*x, mask);
-                    yCluster2 = sliceVector<float>(*y, mask);
-                    zCluster2 = sliceVector<float>(*z, mask);
+                float meanX = xCluster.mean();
+                float meanY = yCluster.mean();
+                mask = (mask.cast<int>() + ( ((((x->array()-meanX)*(x->array()-meanX) + (y->array()-meanY)*(y->array()-meanY)) < clS.r*clS.r).cast<int>()) * ( (((z->array()-meanZ) > clS.zMin).cast<int>()) * (((z->array()-meanZ) < clS.zMax).cast<int>()) ).cast<int>())).cast<bool>();
+                zCluster2 = sliceVector<float>(*z, mask);
+                if(zCluster2.size() > clS.ignoreClusterPointsHigh || zCluster2.size() < clS.ignoreClusterPointsLow) {
+                    ignoreClusters(i) = true;
+                    continue;
                 }
+                xCluster2 = sliceVector<float>(*x, mask);
+                yCluster2 = sliceVector<float>(*y, mask);
             }
+            else if(zCluster.size() < clS.ignoreClusterPointsLow) {
+                    ignoreClusters(i) = true;
+                    continue;
+            }
+            // END OF Cluster check and reconstruct section
+            
+            
             Eigen::Vector3f circle;
-            if((clS.reconstructCluster == true && clS.useOriginalClusterCircle == false) || (clS.reconstructCluster == false))
+            if((clS.reconstructCluster == true && clS.useOriginalClusterCircle == true) || (clS.reconstructCluster == false))
                 circle = regressCircle(xCluster, yCluster);
             else
                 circle = regressCircle(xCluster2, yCluster2);
             if(clS.reconstructCluster == true)
-                X.row(i) << circle(2), (zCluster2.sum() / zCluster2.size()), zCluster2.size()*(circle(0)*circle(0) + circle(1)*circle(1) + (zCluster2.sum() / zCluster2.size())*(zCluster2.sum() / zCluster2.size()));
+                X.row(i) << circle(2), zCluster2.mean(), zCluster2.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster2.mean()*zCluster2.mean());
             else
-                X.row(i) << circle(2), (zCluster.sum() / zCluster.size()), zCluster.size()*(circle(0)*circle(0) + circle(1)*circle(1) + (zCluster.sum() / zCluster.size())*(zCluster.sum() / zCluster.size()));
+                X.row(i) << circle(2), zCluster.mean(), zCluster.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster.mean()*zCluster.mean());
         }
     Eigen::VectorXi labels = nbc.labelMatrix(nbc.predictMatrix(X));
+    //for(int i = 0; i < X.rows(); i++)
+        //std::cout << "X = " << X.row(i) << "\nlabel = " << labels(i) << std::endl << std::endl << std::endl;
+    coneClusters = labels.array().cast<bool>();
     return ((ignoreClusters == false).select(coneClusters, false));
 }
 

@@ -9,6 +9,9 @@
 #include <fstream>
 #include <chrono>
 
+#include "fastcluster.h"
+#include "dbscan.h"
+
 using namespace std;
 using namespace Eigen;
 
@@ -92,14 +95,22 @@ int main() {
 	//std::ofstream file1("groundArray.txt");
 	//if (file1.is_open())
 		//file1 << pcl.groundArray;
+    //file1.close();
     
     std::ofstream file2("cart.txt");
 	if (file2.is_open())
 		file2 << (pcl.getCart());
+    file2.close();
 		
 	std::ofstream file3("clusters.txt");
 	if (file3.is_open())
 		file3 << (pcl.getClusters());
-	
+    file3.close();
+		
+	std::ofstream file4("coneClusters.txt");
+	if (file4.is_open())
+		file4 << cones;
+    file4.close();
+
 	return 0;
 }
