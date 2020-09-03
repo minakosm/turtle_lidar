@@ -5,7 +5,7 @@ A package containing C++ library files and a test executable that implement a gr
 ![](https://i.imgur.com/bcOJtMK.png)
 
 #### Prerequisites  
-- Boost (Usually every Unix OS comes preinstalled with Boost)
+- Boost (Usually every Unix OS comes preinstalled with Boost. If not, install every submodule with `sudo apt-get install libboost-all-dev`)
 - [Eigen 3.3.7](https://gitlab.com/libeigen/eigen/-/archive/3.3.7/eigen-3.3.7.tar.gz)
 - CMake 3.10 minimum
 
