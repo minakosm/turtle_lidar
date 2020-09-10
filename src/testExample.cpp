@@ -17,7 +17,7 @@ using namespace Eigen;
 
 int main() {
 	Matrix <float, Dynamic, Dynamic> data;
-	read_matrix<float>("../example/lidar1.txt",data);
+	read_matrix<float>("../example/lidar.txt",data);
 	
 	VectorXf *x = new VectorXf(data.rows());
 	VectorXf *y = new VectorXf(data.rows());
@@ -88,7 +88,7 @@ int main() {
 	cout << "--GNBC declaration and training duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
     
     a1 = chrono::high_resolution_clock::now();
-    Eigen::Array<bool, Eigen::Dynamic, 1> cones = pcl.clusterClassifier(nbc);
+    Matrix <float, Dynamic, 2, RowMajor> conePos = pcl.clusterClassifier(nbc);
     a2 = chrono::high_resolution_clock::now();
     cout << "--Classifier duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
 
@@ -107,9 +107,9 @@ int main() {
 		file3 << (pcl.getClusters());
     file3.close();
 		
-	std::ofstream file4("coneClusters.txt");
+	std::ofstream file4("conePos.txt");
 	if (file4.is_open())
-		file4 << cones;
+		file4 << conePos;
     file4.close();
 
 	return 0;

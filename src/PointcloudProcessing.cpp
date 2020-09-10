@@ -16,6 +16,10 @@ PointcloudProcessing::PointcloudProcessing() : bF(segments, bins), gF(), cS(), c
 }
 
 PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X, Eigen::VectorXf *Y, Eigen::VectorXf *Z) : bF(segments, bins), gF(), cS(), clS(), x(X), y(Y), z(Z), azim(new Eigen::VectorXf(X->rows())), r(new Eigen::VectorXf(X->rows())), lines(segments, bins) {
+    polarInit();
+}
+
+void PointcloudProcessing::polarInit() {
     #pragma omp parallel for num_threads(NUM_OF_THREADS)
         for (int i = 0; i < x->size(); i++) {
             (*azim)(i) = std::atan2((*y)(i), (*x)(i));
@@ -25,7 +29,7 @@ PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X, Eigen::VectorXf *
     prototypePointsMatrix = Eigen::MatrixXi::Constant(segments, bins, -1);
     if(bF.filterEnabled == 0) {
         groundArray = Eigen::Array<bool, Eigen::Dynamic, 1>::Constant(partitionMatrix.rows(),1,false);
-        partitionMatrix.resize(X->size(), Eigen::NoChange);
+        partitionMatrix.resize(x->size(), Eigen::NoChange);
     }
 }
 
@@ -188,7 +192,7 @@ Eigen::VectorXf PointcloudProcessing::updateLine(float x, float y, const Eigen::
     return newProperties;
 }
 
-float PointcloudProcessing::distPointFromLine(float x, float y, const Eigen::VectorXf &param) {
+inline float PointcloudProcessing::distPointFromLine(float x, float y, const Eigen::VectorXf &param) {
 	return std::abs(-param(0)*x+y-param(1)) / sqrt(param(0)*param(0)+1);
 }
 
@@ -363,8 +367,9 @@ void PointcloudProcessing::clustersVectorFun() {
     clusters = clustersVector;
 }
 
-Eigen::Array <bool, Eigen::Dynamic, 1> PointcloudProcessing::clusterClassifier(GNBC &nbc) {
+Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::clusterClassifier(GNBC &nbc) {
     Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero(numberOfClusters, 3);
+    Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> pos = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero(numberOfClusters, 2);
     Eigen::Array <bool, Eigen::Dynamic, 1> coneClusters = Eigen::Matrix<bool,Eigen::Dynamic,1>::Constant(numberOfClusters, false).array();
     Eigen::Array <bool, Eigen::Dynamic, 1> ignoreClusters = Eigen::Matrix<bool, Eigen::Dynamic, 1>::Constant(numberOfClusters, false).array();
     //#pragma omp parallel for ordered num_threads(NUM_OF_THREADS) shared(X)
@@ -410,12 +415,19 @@ Eigen::Array <bool, Eigen::Dynamic, 1> PointcloudProcessing::clusterClassifier(G
                 X.row(i) << circle(2), zCluster2.mean(), zCluster2.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster2.mean()*zCluster2.mean());
             else
                 X.row(i) << circle(2), zCluster.mean(), zCluster.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster.mean()*zCluster.mean());
+            pos.row(i) << circle(0), circle(1);
         }
     Eigen::VectorXi labels = nbc.labelMatrix(nbc.predictMatrix(X));
     //for(int i = 0; i < X.rows(); i++)
         //std::cout << "X = " << X.row(i) << "\nlabel = " << labels(i) << std::endl << std::endl << std::endl;
-    coneClusters = labels.array().cast<bool>();
-    return ((ignoreClusters == false).select(coneClusters, false));
+    coneClusters = ((ignoreClusters == false).select(labels.array().cast<bool>(), false));
+    Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> pos2 = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero((coneClusters == true).count(), 2);
+    int counter = 0;
+    for(int i = 0; i < numberOfClusters; i++) {
+        if(coneClusters(i) == true)
+            pos2.row(counter++) = pos.row(i);
+    }
+    return pos2;
 }
 
 Eigen::Vector3f PointcloudProcessing::regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC) {
@@ -434,4 +446,23 @@ Eigen::Vector3f PointcloudProcessing::regressCircle(const Eigen::VectorXf &xC, c
         u += h;
     }
     return u;
+}
+
+Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z, GNBC &nbc) {
+    x = std::move(X);
+    y = std::move(Y);
+    z = std::move(Z);
+    azim = std::make_unique<Eigen::VectorXf>(x->size());
+    r = std::make_unique<Eigen::VectorXf>(x->size());
+    polarInit();
+    filter();
+    calculatePartitionMatrix();
+    calculatePrototypePointsMatrix();
+    checkPrototypePointsMatrix();
+    groundLinesFit();
+    groundClassifier();
+    filterGround();
+    nonGroundClustering();
+    Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos = clusterClassifier(nbc);
+    return conePos;
 }

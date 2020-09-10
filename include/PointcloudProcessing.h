@@ -32,6 +32,18 @@ class PointcloudProcessing {
         int numberOfClusters;
         Eigen::Array <bool, Eigen::Dynamic, 1> coneClusters;
         Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> clusterPositions;
+        
+        void polarInit();
+        void removePoints(const Eigen::Array <bool, Eigen::Dynamic, 1> &logicalVector);
+        Eigen::VectorXf getLine(const Eigen::VectorXf &properties);
+        Eigen::VectorXf updateLine(float x, float y, const Eigen::VectorXf &properties);
+        SegmentLines segmentGroundLinesFit(int segment);
+        inline float distPointFromLine(float x, float y, const Eigen::VectorXf &param);
+        void condensedDistances();
+        void hierarchicalClustering();
+        void DBSCANclustering();
+        void clustersVectorFun();
+        Eigen::Vector3f regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC);
     public:
         PointcloudProcessing();
         PointcloudProcessing(Eigen::VectorXf *X, Eigen::VectorXf *Y, Eigen::VectorXf *Z);
@@ -47,24 +59,15 @@ class PointcloudProcessing {
         Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> getCart();
 
         void filter();
-        void removePoints(const Eigen::Array <bool, Eigen::Dynamic, 1> &logicalVector);
         void calculatePartitionMatrix();
         void calculatePrototypePointsMatrix();
         void checkPrototypePointsMatrix();
         void groundLinesFit();
-        float distPointFromLine(float x, float y, const Eigen::VectorXf &param);
-        Eigen::VectorXf getLine(const Eigen::VectorXf &properties);
-        Eigen::VectorXf updateLine(float x, float y, const Eigen::VectorXf &properties);
-        SegmentLines segmentGroundLinesFit(int segment);
         void groundClassifier();
         void filterGround();
         void nonGroundClustering();
-        void condensedDistances();
-        void hierarchicalClustering();
-        void DBSCANclustering();
-        void clustersVectorFun();
-        Eigen::Array <bool, Eigen::Dynamic, 1> clusterClassifier(GNBC &nbc);
-        Eigen::Vector3f regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC);
+        Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> clusterClassifier(GNBC &nbc);
+        Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> pipeline(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z, GNBC &nbc);
 };
 
 #endif // POINTCLOUD_PROCESSING_H_INCLUDED
