@@ -43,6 +43,8 @@ int main() {
 	Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos = lidarPipeline.pipeline(x, y, z, nbc);
 	a2 = chrono::high_resolution_clock::now();
 	cout << "--Pipeline duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
-	
+
+    cout << "Number of cones detected: " << conePos.rows() << endl;
+
 	return 0;
 }
