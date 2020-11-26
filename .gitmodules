@@ -1,0 +1,6 @@
+[submodule "modules/gaussian-naive-bayes-classifier"]
+	path = modules/gaussian-naive-bayes-classifier
+	url = https://gitlab.com/NTkot/gaussian-naive-bayes-classifier
+[submodule "modules/hclust-cpp"]
+	path = modules/hclust-cpp
+	url = https://github.com/cdalitz/hclust-cpp
