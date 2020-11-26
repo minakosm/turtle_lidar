@@ -22,8 +22,8 @@ int main() {
 	
 	MatrixXf trainDataX;
 	VectorXi trainDataY;
-	read_matrix<float>("../gaussian-naive-bayes-classifier/trainDataX.txt", trainDataX);
-	read_vector<int>("../gaussian-naive-bayes-classifier/trainDataY.txt", trainDataY);
+	read_matrix<float>("../example/coneTrainDataX.txt", trainDataX);
+	read_vector<int>("../example/coneTrainDataY.txt", trainDataY);
 	
 	std::unique_ptr<Eigen::VectorXf> x = std::make_unique<Eigen::VectorXf>(data.rows());
 	std::unique_ptr<Eigen::VectorXf> y = std::make_unique<Eigen::VectorXf>(data.rows());

@@ -34,64 +34,74 @@ int main() {
 	//pcl.printSettings();
 	pcl.printPointcloudSize();
 	
-	a1 = chrono::high_resolution_clock::now();
+	auto b1 = chrono::high_resolution_clock::now();
 	pcl.filter();
-	a2 = chrono::high_resolution_clock::now();
-	cout << "--Filter duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	auto b2 = chrono::high_resolution_clock::now();
+	cout << "--Filter duration = " << chrono::duration_cast<chrono::microseconds>(b2 - b1).count() << "μs" << endl;
 	pcl.printPointcloudSize();
 	//cout << *pcl.x << endl << endl << *pcl.y << endl << endl << *pcl.z << endl << endl << *pcl.azim << endl << endl << *pcl.r;
 	
-	a1 = chrono::high_resolution_clock::now();
+	auto c1 = chrono::high_resolution_clock::now();
 	pcl.calculatePartitionMatrix();
-	a2 = chrono::high_resolution_clock::now();
-	cout << "--Partition Matrix duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	auto c2 = chrono::high_resolution_clock::now();
+	cout << "--Partition Matrix duration = " << chrono::duration_cast<chrono::microseconds>(c2 - c1).count() << "μs" << endl;
 	
-	a1 = chrono::high_resolution_clock::now();
+	auto d1 = chrono::high_resolution_clock::now();
 	pcl.calculatePrototypePointsMatrix();
-	a2 = chrono::high_resolution_clock::now();
-	cout << "--Prototype Matrix duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	auto d2 = chrono::high_resolution_clock::now();
+	cout << "--Prototype Matrix duration = " << chrono::duration_cast<chrono::microseconds>(d2 - d1).count() << "μs" << endl;
 	
 	//cout << pcl.prototypePointsMatrix << std::endl;
 	
-	a1 = chrono::high_resolution_clock::now();
+	auto e1 = chrono::high_resolution_clock::now();
 	pcl.groundLinesFit();
-	a2 = chrono::high_resolution_clock::now();
-	cout << "--Ground Lines Fit duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	auto e2 = chrono::high_resolution_clock::now();
+	cout << "--Ground Lines Fit duration = " << chrono::duration_cast<chrono::microseconds>(e2 - e1).count() << "μs" << endl;
 	
 	//cout << pcl.lines << endl;
 	
-	a1 = chrono::high_resolution_clock::now();
+	auto f1 = chrono::high_resolution_clock::now();
 	pcl.groundClassifier();
-	a2 = chrono::high_resolution_clock::now();
-	cout << "--Ground Classifying duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	auto f2 = chrono::high_resolution_clock::now();
+	cout << "--Ground Classifying duration = " << chrono::duration_cast<chrono::microseconds>(f2 - f1).count() << "μs" << endl;
 	
-	a1 = chrono::high_resolution_clock::now();
+	auto g1 = chrono::high_resolution_clock::now();
 	pcl.filterGround();
-	a2 = chrono::high_resolution_clock::now();
-	cout << "--Filter Ground duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	auto g2 = chrono::high_resolution_clock::now();
+	cout << "--Filter Ground duration = " << chrono::duration_cast<chrono::microseconds>(g2 - g1).count() << "μs" << endl;
 	
 	cout << "Non ground size = " << (pcl.getCart()).rows() << endl;
 	
-	a1 = chrono::high_resolution_clock::now();
+	auto h1 = chrono::high_resolution_clock::now();
 	pcl.nonGroundClustering();
-	a2 = chrono::high_resolution_clock::now();
-	cout << "--Clustering duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	auto h2 = chrono::high_resolution_clock::now();
+	cout << "--Clustering duration = " << chrono::duration_cast<chrono::microseconds>(h2 - h1).count() << "μs" << endl;
 
 	MatrixXf trainDataX;
 	VectorXi trainDataY;
-	read_matrix<float>("../gaussian-naive-bayes-classifier/trainDataX.txt", trainDataX);
-	read_vector<int>("../gaussian-naive-bayes-classifier/trainDataY.txt", trainDataY);
+	read_matrix<float>("../example/coneTrainDataX.txt", trainDataX);
+	read_vector<int>("../example/coneTrainDataY.txt", trainDataY);
 	
-	a1 = chrono::high_resolution_clock::now();
+	auto i1 = chrono::high_resolution_clock::now();
 	GNBC nbc(trainDataX, trainDataY);
-	a2 = chrono::high_resolution_clock::now();
-	cout << "--GNBC declaration and training duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+	auto i2 = chrono::high_resolution_clock::now();
+	cout << "--GNBC declaration and training duration = " << chrono::duration_cast<chrono::microseconds>(i2 - i1).count() << "μs" << endl;
     
-    a1 = chrono::high_resolution_clock::now();
+    auto j1 = chrono::high_resolution_clock::now();
     Matrix <float, Dynamic, 2, RowMajor> conePos = pcl.clusterClassifier(nbc);
-    a2 = chrono::high_resolution_clock::now();
-    cout << "--Classifier duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
+    auto j2 = chrono::high_resolution_clock::now();
+    cout << "--Classifier duration = " << chrono::duration_cast<chrono::microseconds>(j2 - j1).count() << "μs" << endl;
 
+    cout << "TOTAL TIME: " << (float)(chrono::duration_cast<chrono::microseconds>(a2 - a1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(b2 - b1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(c2 - c1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(d2 - d1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(e2 - e1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(f2 - f1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(g2 - g1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(h2 - h1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(i2 - i1).count() + 
+                                      chrono::duration_cast<chrono::microseconds>(j2 - j1).count()) / 1000 << "ms" << endl;
 	//std::ofstream file1("groundArray.txt");
 	//if (file1.is_open())
 		//file1 << pcl.groundArray;
