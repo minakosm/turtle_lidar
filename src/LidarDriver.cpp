@@ -1,6 +1,7 @@
 #include "LidarDriver.h"
 #include "PointcloudProcessing.h"
 #include "os1.h"
+#include "os1_packet.h"
 
 #include <iostream>
 #include <thread>
@@ -9,6 +10,8 @@
 #include <fstream>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
+#include <chrono>
+#include <cstdint>
 
 #ifndef PI
 #define PI 3.141593
@@ -16,6 +19,7 @@
 
 LidarDriver::LidarDriver() : pointcloudProcessor() {
     readSettingsFromINI();
+    endFlag = false;
     height = 32;
     counter = 0;
     scan_counter = 0;
@@ -49,10 +53,23 @@ LidarDriver::LidarDriver() : pointcloudProcessor() {
             std::cout << "Invalid lidar_mode\n";
             return;
     }
+    times_buffer.resize(width);
+    ranges_buffer.resize(width * height);
+    intensities_buffer.resize(width * height);
+
+    times_process_buffer.resize(width);
+    ranges_process_buffer.resize(width * height);
+    intensities_process_buffer.resize(width * height);
+    // std::cout << "Width = " << width 
+    //           << "\nHeight = " << height 
+    //           << "\nRotation Rate = " << rotationRate 
+    //           << "\nPackets Per Scan = " << packetsPerScan 
+    //           << "\nCounter = " << unsigned(counter) 
+    //           << "\nScan Counter = " << scan_counter 
+    //           << std::endl;
 }
 
 LidarDriver::~LidarDriver() {
-    delete[] lidar_buf;
 }
 
 void LidarDriver::readSettingsFromINI(std::string pathToIniFile) {
@@ -76,30 +93,26 @@ int LidarDriver::run_driver() {
     initialize();
     std::cout << "Lidar Driver Initialized\n";
 
-    lidar_buf = new uint8_t[ouster::OS1::lidar_packet_bytes + 1];
+    uint8_t lidar_buf[ouster::OS1::lidar_packet_bytes + 1];
 
-    while (true) {
-        ouster::OS1::client_state st =  ouster::OS1::poll_client(*cli);
+    ouster::OS1::client_state st;
+    while (!endFlag) {
+        st = ouster::OS1::poll_client(*cli, 1);
         if (st & ouster::OS1::ERROR) {
             std::cout << "Lidar returned error status\n";
             return 3;
         }
         else if (st & ouster::OS1::LIDAR_DATA) {
-            if (ouster::OS1::read_lidar_packet(*cli, lidar_buf))
-                handle_lidar();
+            if (ouster::OS1::read_lidar_packet(*cli, lidar_buf)) {
+                handle_lidar(lidar_buf);
+            }
+            else
+                std::cout << "read_lidar_packet failed\n";
         }
     }
 }
 
 void LidarDriver::initialize() {
-    times_buffer = std::make_unique<uint64_t>(width);
-    ranges_buffer = std::make_unique<uint32_t>(width * height);
-    intensities_buffer = std::make_unique<uint16_t>(width * height);
-
-    times_process_buffer = std::make_unique<uint64_t>(width);
-    ranges_process_buffer = std::make_unique<uint32_t>(width * height);
-    intensities_process_buffer = std::make_unique<uint16_t>(width * height);
-
     beam_azim_angles = Eigen::VectorXf::Zero(height);
     beam_alt_angles = Eigen::VectorXf::Zero(height);
     for(int i = 32; i < 64; i++) {
@@ -126,25 +139,25 @@ void LidarDriver::initialize() {
     }
 }
 
-void LidarDriver::handle_lidar() {
+void LidarDriver::handle_lidar(uint8_t* lidar_buf) {
     // std::cout << "Handle Lidar Start\n";
     // mutex lock
 	//#pragma omp parallel for ordered num_threads(2)
 	for(int i = counter; i < (counter + ouster::OS1::columns_per_buffer); i++) {
 	    const uint8_t* col_buf = ouster::OS1::nth_col(i-counter, lidar_buf);
 	    if(ouster::OS1::col_valid(col_buf)) {
-	        times_buffer.get()[i] = ouster::OS1::col_timestamp(col_buf);
+	        times_buffer[i] = ouster::OS1::col_timestamp(col_buf);
 	        const uint8_t* px;
 	        for(int j = 0; j < height; j++) {
 	            px = ouster::OS1::nth_px(j+height, col_buf);
-	            ranges_buffer.get()[i*height+j] = ouster::OS1::px_range(px);
-	            intensities_buffer.get()[i*height+j] = ouster::OS1::px_reflectivity(px);
+	            ranges_buffer[i*height+j] = ouster::OS1::px_range(px);
+	            intensities_buffer[i*height+j] = ouster::OS1::px_reflectivity(px);
 	        }
 	    }
 	}
-    // mutex unlock
+    // // mutex unlock
 	counter++;
-    std::cout << "Counter = %u" << counter << std::endl;
+    // std::cout << "Counter = " << unsigned(counter) << std::endl;
 	if(counter == packetsPerScan) {
 	    counter = 0;
 	    // mutex process buffer lock
@@ -161,12 +174,16 @@ void LidarDriver::handle_lidar() {
 void LidarDriver::handle_lidar_scan() {
     std::cout << "Handle Lidar Scan Start\n";
     
-    Eigen::Matrix <uint32_t, Eigen::Dynamic, 1> ranges(width*height);
-    ranges << *ranges_process_buffer;
+    Eigen::Matrix <uint32_t, Eigen::Dynamic, 1> ranges = Eigen::Map<Eigen::Matrix <uint32_t, Eigen::Dynamic, 1>>(ranges_process_buffer.data(), ranges_process_buffer.size());
     std::ofstream file("ranges.txt");
     if (file.is_open())
         file << ranges;
     file.close();
     
     std::cout << "Handle Lidar Scan End\n";
+    this->endFlag = true;
+}
+
+void LidarDriver::handle_imu(uint8_t* imu_buf) {
+
 }

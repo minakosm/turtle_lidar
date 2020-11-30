@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.1)
 project(lidarPipeline VERSION 0.92)
 
 set(CMAKE_CXX_STANDARD 14)
@@ -28,8 +28,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
 
 # Ouster client library section
 add_library(ouster_client SHARED modules/ouster_driver/src/os1.cpp 
-                                 modules/ouster_driver/src/os1_util.cpp)
+                                modules/ouster_driver/src/os1_util.cpp)
 target_link_libraries(ouster_client jsoncpp_lib)
+target_include_directories(ouster_client PUBLIC include)
 target_include_directories(ouster_client SYSTEM PRIVATE ${jsoncpp_INCLUDE_DIRS})
 
 # FastCluster (Hierarchical Clustering library for C++)
