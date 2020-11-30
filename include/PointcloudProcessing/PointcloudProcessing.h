@@ -47,6 +47,7 @@ class PointcloudProcessing {
     public:
         PointcloudProcessing();
         PointcloudProcessing(Eigen::VectorXf *X, Eigen::VectorXf *Y, Eigen::VectorXf *Z);
+        PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z);
         void printPointcloudSize();
         void printSettings(); 
         

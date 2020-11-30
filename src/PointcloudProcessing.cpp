@@ -19,6 +19,13 @@ PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X, Eigen::VectorXf *
     polarInit();
 }
 
+PointcloudProcessing::PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z) : bF(segments, bins), gF(), cS(), clS(), azim(new Eigen::VectorXf(X->rows())), r(new Eigen::VectorXf(X->rows())), lines(segments, bins) {
+    this->x.swap(X);
+    this->y.swap(Y);
+    this->z.swap(Z);
+    polarInit();
+}
+
 void PointcloudProcessing::polarInit() {
     #pragma omp parallel for num_threads(NUM_OF_THREADS)
         for (int i = 0; i < x->size(); i++) {
@@ -449,9 +456,9 @@ Eigen::Vector3f PointcloudProcessing::regressCircle(const Eigen::VectorXf &xC, c
 }
 
 Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z, GNBC &nbc) {
-    x = std::move(X);
-    y = std::move(Y);
-    z = std::move(Z);
+    this->x.swap(X);
+    this->y.swap(Y);
+    this->z.swap(Z);
     azim = std::make_unique<Eigen::VectorXf>(x->size());
     r = std::make_unique<Eigen::VectorXf>(x->size());
     polarInit();
