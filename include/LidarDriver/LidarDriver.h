@@ -26,12 +26,12 @@ class LidarDriver {
 
         uint8_t counter;
         int scan_counter;
-        bool endFlag;
 
         std::shared_ptr<ouster::OS1::client> cli;
+        uint8_t* lidar_buf;
         
-        Eigen::VectorXf beam_azim_angles;
-        Eigen::VectorXf beam_alt_angles;
+        std::vector<float> beam_azim_angles;
+        std::vector<float> beam_alt_angles;
         
         std::vector<uint64_t> times_buffer;
         std::vector<uint32_t> ranges_buffer;
@@ -41,9 +41,13 @@ class LidarDriver {
         std::vector<uint32_t> ranges_process_buffer;
         std::vector<uint16_t> intensities_process_buffer;
         
-        Eigen::Matrix <float, Eigen::Dynamic, 1> x_lut;
-        Eigen::Matrix <float, Eigen::Dynamic, 1> y_lut;
-        Eigen::Matrix <float, Eigen::Dynamic, 1> z_lut;
+        std::vector<float> x_lut;
+        std::vector<float> y_lut;
+        std::vector<float> z_lut;
+
+        std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> X;
+        std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> Y;
+        std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> Z;
 
         PointcloudProcessing pointcloudProcessor;
             
@@ -54,8 +58,7 @@ class LidarDriver {
         void readSettingsFromINI(std::string pathToIniFile = "../config.ini");
         int run_driver();
         void initialize();
-        void handle_lidar(uint8_t* lidar_buf);
-        void handle_imu(uint8_t* imu_buf);
+        void handle_lidar();
         void handle_lidar_scan();
 };
 
