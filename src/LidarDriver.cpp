@@ -177,9 +177,5 @@ void LidarDriver::handle_lidar_scan() {
             (*Z)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * z_lut[i*height + j];
         }
     }
-    // std::ofstream file("cart.txt");
-    // if (file.is_open())
-    //     file << cart;
-    // file.close();
     // std::cout << "Handle Lidar Scan end\n";
 }

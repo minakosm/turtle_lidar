@@ -15,14 +15,29 @@
 PointcloudProcessing::PointcloudProcessing() : bF(segments, bins), gF(), cS(), clS(), lines(segments, bins) {
 }
 
-PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X, Eigen::VectorXf *Y, Eigen::VectorXf *Z) : bF(segments, bins), gF(), cS(), clS(), x(X), y(Y), z(Z), azim(new Eigen::VectorXf(X->rows())), r(new Eigen::VectorXf(X->rows())), lines(segments, bins) {
+PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X, 
+                                           Eigen::VectorXf *Y, 
+                                           Eigen::VectorXf *Z, 
+                                           Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities) : 
+                                           bF(segments, bins), gF(), cS(), clS(), x(X), y(Y), z(Z), intensity(intensities), 
+                                           azim(new Eigen::VectorXf(X->rows())), 
+                                           r(new Eigen::VectorXf(X->rows())), 
+                                           lines(segments, bins) {
     polarInit();
 }
 
-PointcloudProcessing::PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z) : bF(segments, bins), gF(), cS(), clS(), azim(new Eigen::VectorXf(X->rows())), r(new Eigen::VectorXf(X->rows())), lines(segments, bins) {
+PointcloudProcessing::PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, 
+                                           std::unique_ptr<Eigen::VectorXf> &Y, 
+                                           std::unique_ptr<Eigen::VectorXf> &Z, 
+                                           std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities) : 
+                                           bF(segments, bins), gF(), cS(), clS(), 
+                                           azim(new Eigen::VectorXf(X->rows())), 
+                                           r(new Eigen::VectorXf(X->rows())), 
+                                           lines(segments, bins) {
     this->x.swap(X);
     this->y.swap(Y);
     this->z.swap(Z);
+    this->intensity.swap(intensities);
     polarInit();
 }
 
@@ -70,6 +85,10 @@ Eigen::VectorXf PointcloudProcessing::getR() {
     return (*r);
 }
 
+Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> PointcloudProcessing::getIntensities() {
+    return (*intensity);
+}
+
 Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> PointcloudProcessing::getCart() {
     return (*cart);
 }
@@ -95,7 +114,8 @@ void PointcloudProcessing::removePoints(const Eigen::Array <bool, Eigen::Dynamic
             (*y)(counter) = (*y)(i);
             (*z)(counter) = (*z)(i);
             (*azim)(counter) = (*azim)(i);
-            (*r)(counter++) = (*r)(i);
+            (*r)(counter) = (*r)(i);
+            (*intensity)(counter++) = (*intensity)(i);
 		}
 	}
 	x->conservativeResize(size);
@@ -103,15 +123,16 @@ void PointcloudProcessing::removePoints(const Eigen::Array <bool, Eigen::Dynamic
     z->conservativeResize(size);
     azim->conservativeResize(size);
     r->conservativeResize(size);
+    intensity->conservativeResize(size);
 }
 
 void PointcloudProcessing::calculatePartitionMatrix() {
-	float minAzim = azim->minCoeff();
-	float maxAzim = azim->maxCoeff();
-	float minRad = r->minCoeff();
-	float maxRad = r->maxCoeff();
-	float shiftAngle = (maxAzim - minAzim) / ((float)segments);
-	float shiftRad = (maxRad - minRad) / ((float)bins);
+	minAzim = azim->minCoeff();
+	maxAzim = azim->maxCoeff();
+	minRad = r->minCoeff();
+	maxRad = r->maxCoeff();
+	shiftAngle = (maxAzim - minAzim) / ((float)segments);
+	shiftRad = (maxRad - minRad) / ((float)bins);
 	partitionMatrix.col(0).noalias() = ((azim->array() - minAzim) / shiftAngle).floor().cast<uint8_t>().matrix();
 	partitionMatrix.col(1).noalias() = ((r->array() - minRad) / shiftRad).floor().cast<uint8_t>().matrix();
 	partitionMatrix.col(0) = (partitionMatrix.col(0).array() > (segments - 1)).select(segments - 1, partitionMatrix.col(0));
@@ -308,9 +329,10 @@ void PointcloudProcessing::filterGround() {
             (*cart)(counter,0) = (*x)(i);
             (*cart)(counter,1) = (*y)(i);
             (*cart)(counter,2) = (*z)(i);
-            counter++;
+            (*intensity)(counter++) = (*intensity)(i);
 		}
 	}
+    intensity->conservativeResize(size);
 }
 
 void PointcloudProcessing::nonGroundClustering() {
@@ -419,9 +441,9 @@ Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::
             else
                 circle = regressCircle(xCluster2, yCluster2);
             if(clS.reconstructCluster == true)
-                X.row(i) << circle(2), zCluster2.mean(), zCluster2.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster2.mean()*zCluster2.mean());
+                X.row(i) << circle(2), clusterDistFromGround(circle(0), circle(1), zCluster2.mean()), zCluster2.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster2.mean()*zCluster2.mean());
             else
-                X.row(i) << circle(2), zCluster.mean(), zCluster.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster.mean()*zCluster.mean());
+                X.row(i) << circle(2), clusterDistFromGround(circle(0), circle(1), zCluster.mean()), zCluster.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster.mean()*zCluster.mean());
             pos.row(i) << circle(0), circle(1);
         }
     Eigen::VectorXi labels = nbc.labelMatrix(nbc.predictMatrix(X));
@@ -435,6 +457,29 @@ Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::
             pos2.row(counter++) = pos.row(i);
     }
     return pos2;
+}
+
+float PointcloudProcessing::clusterDistFromGround(float x, float y, float z) {
+    float azim = std::atan2(y, x);
+    float r = std::sqrt(x*x+y*y);
+    uint8_t segment = (uint8_t)std::floor(((azim - minAzim) / shiftAngle));
+    if(segment > segments - 1)
+        segment = segments - 1;
+    else if(segment < 0)
+        segment = 0;
+    SegmentLines lineVector(lines, segment);
+    int lineSelection = 0;
+    float minDist = (r-lineVector.linesMedianMatrixX(0)) * (r-lineVector.linesMedianMatrixX(0)) + (z-lineVector.linesMedianMatrixY(0)) * (z-lineVector.linesMedianMatrixY(0));
+    for(int j = 1; j < lineVector.size; j++) {
+        float dist = (r-lineVector.linesMedianMatrixX(j)) * (r-lineVector.linesMedianMatrixX(j)) + (z-lineVector.linesMedianMatrixY(j)) * (z-lineVector.linesMedianMatrixY(j));
+        if(dist < minDist) {
+            minDist = dist;
+            lineSelection = j;
+        }
+	}
+    float paramM = lineVector.linesMatrix(2*lineSelection);
+    float paramB = lineVector.linesMatrix(2*lineSelection+1);
+    return (std::abs(-paramM*r + z - paramB) / std::sqrt(paramM*paramM + 1));
 }
 
 Eigen::Vector3f PointcloudProcessing::regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC) {

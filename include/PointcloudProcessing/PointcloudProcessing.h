@@ -15,12 +15,14 @@ class PointcloudProcessing {
     private:
         int segments;
         int bins;
+        float minAzim, maxAzim, minRad, maxRad, shiftAngle, shiftRad;
         BaseFilter bF;
         GroundFilter gF;
         ClusterSettings cS;
         ClassifierSettings clS;
 
         std::unique_ptr<Eigen::VectorXf> x,y,z,azim,r;
+        std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> intensity;
         std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>> cart;
 
         Eigen::Matrix <uint8_t, Eigen::Dynamic, 2, Eigen::RowMajor> partitionMatrix;
@@ -43,11 +45,18 @@ class PointcloudProcessing {
         void hierarchicalClustering();
         void DBSCANclustering();
         void clustersVectorFun();
+        float clusterDistFromGround(float x, float y, float z);
         Eigen::Vector3f regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC);
     public:
         PointcloudProcessing();
-        PointcloudProcessing(Eigen::VectorXf *X, Eigen::VectorXf *Y, Eigen::VectorXf *Z);
-        PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z);
+        PointcloudProcessing(Eigen::VectorXf *X, 
+                             Eigen::VectorXf *Y, 
+                             Eigen::VectorXf *Z, 
+                             Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities);
+        PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, 
+                             std::unique_ptr<Eigen::VectorXf> &Y, 
+                             std::unique_ptr<Eigen::VectorXf> &Z, 
+                             std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities);
         void printPointcloudSize();
         void printSettings(); 
         
@@ -56,6 +65,7 @@ class PointcloudProcessing {
         Eigen::VectorXf getZ();
         Eigen::VectorXf getAzim();
         Eigen::VectorXf getR();
+        Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> getIntensities();
         Eigen::VectorXi getClusters();
         Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> getCart();
 
