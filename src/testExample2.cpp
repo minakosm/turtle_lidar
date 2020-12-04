@@ -28,6 +28,7 @@ int main() {
 	std::unique_ptr<Eigen::VectorXf> x = std::make_unique<Eigen::VectorXf>(data.rows());
 	std::unique_ptr<Eigen::VectorXf> y = std::make_unique<Eigen::VectorXf>(data.rows());
 	std::unique_ptr<Eigen::VectorXf> z = std::make_unique<Eigen::VectorXf>(data.rows());
+    std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> intensities = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(data.rows());
 
 	*x = data.col(0);
 	*y = data.col(1);
@@ -40,7 +41,7 @@ int main() {
 	
 	a1 = chrono::high_resolution_clock::now();
 	PointcloudProcessing lidarPipeline;
-	Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos = lidarPipeline.pipeline(x, y, z, nbc);
+	Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos = lidarPipeline.pipeline(x, y, z, intensities, nbc);
 	a2 = chrono::high_resolution_clock::now();
 	cout << "--Pipeline duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
 

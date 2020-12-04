@@ -78,7 +78,11 @@ class PointcloudProcessing {
         void filterGround();
         void nonGroundClustering();
         Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> clusterClassifier(GNBC &nbc);
-        Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> pipeline(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z, GNBC &nbc);
+        Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> pipeline(std::unique_ptr<Eigen::VectorXf> &X, 
+                                                                           std::unique_ptr<Eigen::VectorXf> &Y, 
+                                                                           std::unique_ptr<Eigen::VectorXf> &Z,
+                                                                           std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities, 
+                                                                           GNBC &nbc);
 };
 
 #endif // POINTCLOUD_PROCESSING_H_INCLUDED

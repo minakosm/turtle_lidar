@@ -22,12 +22,14 @@ int main() {
 	VectorXf *x = new VectorXf(data.rows());
 	VectorXf *y = new VectorXf(data.rows());
 	VectorXf *z = new VectorXf(data.rows());
+    Matrix<uint16_t, Dynamic, 1> *inten = new Matrix<uint16_t, Dynamic, 1>(data.rows());
 	*x = data.col(0);
 	*y = data.col(1);
 	*z = data.col(2);
+    *inten = Matrix<uint16_t, Dynamic, 1>::Zero(data.rows());
 	
 	auto a1 = chrono::high_resolution_clock::now();
-	PointcloudProcessing pcl(x,y,z);
+	PointcloudProcessing pcl(x,y,z,inten);
 	auto a2 = chrono::high_resolution_clock::now();
 	cout << "--Declaration duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
 	

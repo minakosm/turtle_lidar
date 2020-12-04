@@ -500,10 +500,11 @@ Eigen::Vector3f PointcloudProcessing::regressCircle(const Eigen::VectorXf &xC, c
     return u;
 }
 
-Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z, GNBC &nbc) {
+Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z, std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities, GNBC &nbc) {
     this->x.swap(X);
     this->y.swap(Y);
     this->z.swap(Z);
+    this->intensity.swap(intensities);
     azim = std::make_unique<Eigen::VectorXf>(x->size());
     r = std::make_unique<Eigen::VectorXf>(x->size());
     polarInit();
