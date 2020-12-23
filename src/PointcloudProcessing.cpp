@@ -15,6 +15,15 @@
 PointcloudProcessing::PointcloudProcessing() : bF(segments, bins), gF(), cS(), clS(), lines(segments, bins) {
 }
 
+PointcloudProcessing::PointcloudProcessing(int pclSize) : bF(segments, bins), gF(), cS(), clS(), lines(segments, bins) {
+    x = std::make_unique<Eigen::VectorXf>(pclSize);
+    y = std::make_unique<Eigen::VectorXf>(pclSize);
+    z = std::make_unique<Eigen::VectorXf>(pclSize);
+    intensity = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(pclSize);
+    azim = std::make_unique<Eigen::VectorXf>(pclSize);
+    r = std::make_unique<Eigen::VectorXf>(pclSize);
+}
+
 PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X, 
                                            Eigen::VectorXf *Y, 
                                            Eigen::VectorXf *Z, 
@@ -61,8 +70,8 @@ void PointcloudProcessing::printPointcloudSize() {
 
 void PointcloudProcessing::printSettings() {
     std::cout << "Base Filter settings:\n" << bF 
-         << "Ground Filter settings:\n" << gF
-         << "Clustering settings:\n" << cS << std::endl;
+              << "Ground Filter settings:\n" << gF
+              << "Clustering settings:\n" << cS << std::endl;
 }
 
 Eigen::VectorXf PointcloudProcessing::getX() {
@@ -505,8 +514,6 @@ Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::
     this->y.swap(Y);
     this->z.swap(Z);
     this->intensity.swap(intensities);
-    azim = std::make_unique<Eigen::VectorXf>(x->size());
-    r = std::make_unique<Eigen::VectorXf>(x->size());
     polarInit();
     filter();
     calculatePartitionMatrix();

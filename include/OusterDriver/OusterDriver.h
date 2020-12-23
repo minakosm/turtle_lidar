@@ -1,5 +1,5 @@
-#ifndef LIDAR_DRIVER_H
-#define LIDAR_DRIVER_H
+#ifndef OUSTER_DRIVER_H
+#define OUSTER_DRIVER_H
 
 #include <eigen3/Eigen/Dense>
 #include <json/json.h>
@@ -12,8 +12,15 @@
 #include "PointcloudProcessing.h"
 #include "os1.h"
 #include "os1_packet.h"
+#include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
 
-class LidarDriver {
+#ifndef PI
+#define PI 3.141593
+#endif
+
+class OusterDriver : public rclcpp::Node {
     private:
         ouster::OS1::lidar_mode lidarMode;
         ouster::OS1::timestamp_mode timestampMode;
@@ -49,17 +56,23 @@ class LidarDriver {
         std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> Y;
         std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> Z;
 
-        PointcloudProcessing pointcloudProcessor;
-            
-    public:
-        LidarDriver();
-        ~LidarDriver();
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr rawPointcloudPublisher;
+        sensor_msgs::msg::PointCloud2 rawPointcloudMsg;
+        bool publishRaw;
 
-        void readSettingsFromINI(std::string pathToIniFile = "../config.ini");
-        int run_driver();
+        PointcloudProcessing pointcloudProcessor;
+
+    public:
+        OusterDriver();
+        ~OusterDriver();
+
+        void readSettingsFromINI(std::string pathToIniFile = "/home/ntkot/ros2_ws/src/turtle_lidar/config.ini");
+        int runDriver();
         void initialize();
-        void handle_lidar();
-        void handle_lidar_scan();
+        void initializePublishers();
+        void handleLidar();
+        void handleLidarScan();
+        void publishRawPointcloud();
 };
 
-#endif // LIDAR_DRIVER_H_INCLUDED
+#endif // OUSTER_DRIVER_H_INCLUDED

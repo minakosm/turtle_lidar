@@ -1,13 +1,13 @@
-#include "settings.h"
-
 #include <ostream>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <string>
 
-BaseFilter::BaseFilter() {
+#include "settings.h"
+
+BaseFilter::BaseFilter(std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
     filterEnabled = pt.get<bool>("BaseFilter.filterEnabled");
     filterAzim = pt.get<bool>("BaseFilter.filterAzim");
@@ -22,9 +22,9 @@ BaseFilter::BaseFilter() {
     minZ = pt.get<float>("BaseFilter.minZ");
 }
 
-BaseFilter::BaseFilter(int &segments, int &bins) {
+BaseFilter::BaseFilter(int &segments, int &bins, std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
 	segments = pt.get<int>("Parameters.segments");
 	bins = pt.get<int>("Parameters.bins");
@@ -42,9 +42,9 @@ BaseFilter::BaseFilter(int &segments, int &bins) {
     minZ = pt.get<float>("BaseFilter.minZ");
 }
 
-GroundFilter::GroundFilter() {
+GroundFilter::GroundFilter(std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
     mMax = pt.get<float>("GroundFilter.mMax");
     mSmall = pt.get<float>("GroundFilter.mSmall");
@@ -55,9 +55,9 @@ GroundFilter::GroundFilter() {
     dGround = pt.get<float>("GroundFilter.dGround");
 }
 
-ClusterSettings::ClusterSettings() {
+ClusterSettings::ClusterSettings(std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
     clusteringMethod = pt.get<int>("Cluster.clusteringMethod");
     DBminPts = pt.get<int>("Cluster.DBminPts");
@@ -66,9 +66,9 @@ ClusterSettings::ClusterSettings() {
     DBepsilon = pt.get<float>("Cluster.DBepsilon");
 }
 
-ClassifierSettings::ClassifierSettings() {
+ClassifierSettings::ClassifierSettings(std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
     ignoreClusterPointsLow = pt.get<int>("Classifier.ignoreClusterPointsLow");
     ignoreClusterPointsHigh = pt.get<int>("Classifier.ignoreClusterPointsHigh");

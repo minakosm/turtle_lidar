@@ -1,8 +1,3 @@
-#include "LidarDriver.h"
-#include "PointcloudProcessing.h"
-#include "os1.h"
-#include "os1_packet.h"
-
 #include <iostream>
 #include <thread>
 #include <eigen3/Eigen/Dense>
@@ -13,11 +8,20 @@
 #include <chrono>
 #include <cstdint>
 
+#include "OusterDriver.h"
+#include "PointcloudProcessing.h"
+#include "os1.h"
+#include "os1_packet.h"
+
+#include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
+
 #ifndef PI
 #define PI 3.141593
 #endif
 
-LidarDriver::LidarDriver() : pointcloudProcessor() {
+OusterDriver::OusterDriver() : Node("OusterDriver"), pointcloudProcessor() {
     readSettingsFromINI();
     height = 32;
     counter = 0;
@@ -49,7 +53,7 @@ LidarDriver::LidarDriver() : pointcloudProcessor() {
             packetsPerScan = 128;
             break;
         default:
-            std::cout << "Invalid lidar_mode\n";
+            RCLCPP_ERROR(this->get_logger(), "Invalid lidar_mode");
             return;
     }
     times_buffer.resize(width);
@@ -59,13 +63,15 @@ LidarDriver::LidarDriver() : pointcloudProcessor() {
     times_process_buffer.resize(width);
     ranges_process_buffer.resize(width * height);
     intensities_process_buffer.resize(width * height);
+
+    runDriver();
 }
 
-LidarDriver::~LidarDriver() {
+OusterDriver::~OusterDriver() {
     delete[] lidar_buf;
 }
 
-void LidarDriver::readSettingsFromINI(std::string pathToIniFile) {
+void OusterDriver::readSettingsFromINI(std::string pathToIniFile) {
     boost::property_tree::ptree pt;
 	boost::property_tree::ini_parser::read_ini(pathToIniFile, pt);
 
@@ -73,42 +79,40 @@ void LidarDriver::readSettingsFromINI(std::string pathToIniFile) {
     lidar_ip = pt.get<std::string>("Lidar.lidarIP");
     lidarMode = (ouster::OS1::lidar_mode)pt.get<int>("Lidar.lidarMode");
     timestampMode = (ouster::OS1::timestamp_mode)pt.get<int>("Lidar.timestampMode");
+    publishRaw = pt.get<bool>("Lidar.publishRawPointcloud");
 }
 
-int LidarDriver::run_driver() {
+int OusterDriver::runDriver() {
     cli = ouster::OS1::init_client(lidar_ip, host_ip, lidarMode, timestampMode);
     if (!cli) {
-        std::cout << "Failed to connect to client at: " << lidar_ip << std::endl;
+        RCLCPP_ERROR(this->get_logger(), "Failed to connect to client at: %s", lidar_ip);
         return 1;
     }
-    std::cout << "Lidar Driver Initializing\n";
+    RCLCPP_INFO(this->get_logger(), "Lidar Driver Initializing");
     initialize();
-    std::cout << "Lidar Driver Initialized\n";
+    RCLCPP_INFO(this->get_logger(), "Lidar Driver Initialized");
 
     lidar_buf = new uint8_t[ouster::OS1::lidar_packet_bytes + 1];
 
     ouster::OS1::client_state st;
-    while (true) {
+    while (rclcpp::ok()) {
         st = ouster::OS1::poll_client(*cli, 1);
         if (st & ouster::OS1::ERROR) {
-            std::cout << "Lidar returned error status\n";
+            RCLCPP_ERROR(this->get_logger(), "Lidar returned error status");
             return 3;
         }
         else if (st & ouster::OS1::LIDAR_DATA) {
             if (ouster::OS1::read_lidar_packet(*cli, lidar_buf)) {
-                auto a1 = std::chrono::high_resolution_clock::now();
-                handle_lidar();
-                auto a2 = std::chrono::high_resolution_clock::now();
-                if(counter % 10 == 0)
-                    std::cout << "Handle time = " << std::chrono::duration_cast<std::chrono::microseconds>(a2 - a1).count() << "μs" << std::endl;
+                handleLidar();
             }
             else
-                std::cout << "read_lidar_packet failed\n";
+                RCLCPP_ERROR(this->get_logger(), "read_lidar_packet failed");
         }
     }
+    return -1;
 }
 
-void LidarDriver::initialize() {
+void OusterDriver::initialize() {
     beam_azim_angles.resize(height);
     beam_alt_angles.resize(height);
     for(int i = height; i < 64; i++) {
@@ -133,10 +137,55 @@ void LidarDriver::initialize() {
             z_lut[i*height + j] = std::sin(beam_alt_angles[j] * PI / 180.0f);
         }
     }
+    initializePublishers();
 }
 
-void LidarDriver::handle_lidar() {
-    // std::cout << "Handle Lidar Start\n";
+void OusterDriver::initializePublishers() {
+    if(publishRaw) {
+        rawPointcloudPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("RawPointcloud", 10);
+
+        rawPointcloudMsg.header.frame_id = "laser_sensor_frame";
+
+        rawPointcloudMsg.width = width;
+        rawPointcloudMsg.height = height;
+        rawPointcloudMsg.is_bigendian = false;
+        rawPointcloudMsg.is_dense = true;
+        rawPointcloudMsg.point_step = 18;
+        rawPointcloudMsg.row_step = width * rawPointcloudMsg.point_step;
+        
+        rawPointcloudMsg.fields.resize(5);
+        
+        rawPointcloudMsg.fields[0].name = "x";
+        rawPointcloudMsg.fields[0].offset = 0;
+        rawPointcloudMsg.fields[0].datatype = 7;
+        rawPointcloudMsg.fields[0].count = 1;
+        
+        rawPointcloudMsg.fields[1].name = "y";
+        rawPointcloudMsg.fields[1].offset = 4;
+        rawPointcloudMsg.fields[1].datatype = 7;
+        rawPointcloudMsg.fields[1].count = 1;
+        
+        rawPointcloudMsg.fields[2].name = "z";
+        rawPointcloudMsg.fields[2].offset = 8;
+        rawPointcloudMsg.fields[2].datatype = 7;
+        rawPointcloudMsg.fields[2].count = 1;
+
+        rawPointcloudMsg.fields[3].name = "t";
+        rawPointcloudMsg.fields[3].offset = 12;
+        rawPointcloudMsg.fields[3].datatype = 6;
+        rawPointcloudMsg.fields[3].count = 1;
+
+        rawPointcloudMsg.fields[4].name = "intensity";
+        rawPointcloudMsg.fields[4].offset = 16;
+        rawPointcloudMsg.fields[4].datatype = 4;
+        rawPointcloudMsg.fields[4].count = 1;
+        
+        rawPointcloudMsg.data.resize(rawPointcloudMsg.point_step * X->size());
+    }
+}
+
+void OusterDriver::handleLidar() {
+    // RCLCPP_INFO(this->get_logger(), "Handle Lidar Start");
     // mutex lock
 	//#pragma omp parallel for ordered num_threads(2)
     for(int i = 0; i <  ouster::OS1::columns_per_buffer; i++) {
@@ -155,21 +204,21 @@ void LidarDriver::handle_lidar() {
 	counter++;
 	if(counter == packetsPerScan) {
 	    counter = 0;
-	    // mutex process buffer lock
+	    // mutex process buffers lock
 	    times_buffer.swap(times_process_buffer);
 	    ranges_buffer.swap(ranges_process_buffer);
 	    intensities_buffer.swap(intensities_process_buffer);
-        // mutex process buffer unlock
+        // mutex process buffers unlock
 
-        std::thread t(&LidarDriver::handle_lidar_scan, this);
+        std::thread t(&OusterDriver::handleLidarScan, this);
 	    t.detach();
 	}
-    // std::cout << "Handle Lidar End\n";
+    // RCLCPP_INFO(this->get_logger(), "Handle Lidar End");
 }
 
-void LidarDriver::handle_lidar_scan() {
+void OusterDriver::handleLidarScan() {
     scan_counter++;
-    // std::cout << "Handle Lidar Scan start\n";
+    // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan start");
     for(int i = 0; i < width; i++) {
         for(uint8_t j = 0; j < height; j++) {
             (*X)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * x_lut[i*height + j];
@@ -177,5 +226,20 @@ void LidarDriver::handle_lidar_scan() {
             (*Z)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * z_lut[i*height + j];
         }
     }
-    // std::cout << "Handle Lidar Scan end\n";
+    if(publishRaw)
+        publishRawPointcloud();
+    // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan end");
+}
+
+void OusterDriver::publishRawPointcloud() {
+    uint8_t* ptr = rawPointcloudMsg.data.data();
+    rawPointcloudMsg.header.stamp = rclcpp::Node::now();
+    for(int i = 0; i < X->size(); i++) {
+        *((float*)(ptr + i*rawPointcloudMsg.point_step)) = (*X)(i);
+        *((float*)(ptr + i*rawPointcloudMsg.point_step + 4)) = (*Y)(i);
+        *((float*)(ptr + i*rawPointcloudMsg.point_step + 8)) = (*Z)(i);
+        *((uint32_t*)(ptr + i*rawPointcloudMsg.point_step + 12)) = (uint32_t)(times_process_buffer[i / height] / 1e+6);
+        *((uint16_t*)(ptr + i*rawPointcloudMsg.point_step + 16)) = intensities_process_buffer[i];
+    }
+    rawPointcloudPublisher->publish(rawPointcloudMsg);
 }

@@ -49,6 +49,7 @@ class PointcloudProcessing {
         Eigen::Vector3f regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC);
     public:
         PointcloudProcessing();
+        PointcloudProcessing(int pclSize);
         PointcloudProcessing(Eigen::VectorXf *X, 
                              Eigen::VectorXf *Y, 
                              Eigen::VectorXf *Z, 
