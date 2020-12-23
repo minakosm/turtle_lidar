@@ -9,21 +9,21 @@ struct BaseFilter {
     bool filterEnabled, filterAzim, filterRad, filterZ;
     float maxAzim, minAzim, maxRad, minRad, maxZ, minZ;
 
-    BaseFilter(std::string filepath = "/home/ntkot/ros2_ws/src/turtle_lidar/config.ini");
-    BaseFilter(int &segments, int &bins, std::string filepath = "/home/ntkot/ros2_ws/src/turtle_lidar/config.ini");
+    BaseFilter(std::string filepath = "./config.ini");
+    BaseFilter(int &segments, int &bins, std::string filepath = "./config.ini");
 };
 
 struct GroundFilter {
     float mMax, mSmall, bMax, bMin, maxRmse, dPrev, dGround;
 
-    GroundFilter(std::string filepath = "/home/ntkot/ros2_ws/src/turtle_lidar/config.ini");
+    GroundFilter(std::string filepath = "./config.ini");
 };
 
 struct ClusterSettings {
     int clusteringMethod, DBminPts;
     float hierClusterDist, DBepsilon;
 
-    ClusterSettings(std::string filepath = "/home/ntkot/ros2_ws/src/turtle_lidar/config.ini");
+    ClusterSettings(std::string filepath = "./config.ini");
 };
 
 struct ClassifierSettings {
@@ -31,7 +31,7 @@ struct ClassifierSettings {
     bool reconstructCluster, useOriginalClusterCircle;
     float r, zMin, zMax, furtherReconstructDist, regressCircleDiffThreshold;
     
-    ClassifierSettings(std::string filepath = "/home/ntkot/ros2_ws/src/turtle_lidar/config.ini");
+    ClassifierSettings(std::string filepath = "./config.ini");
 };
 
 std::ostream &operator<<(std::ostream &os, BaseFilter const &m);

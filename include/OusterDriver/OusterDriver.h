@@ -66,7 +66,7 @@ class OusterDriver : public rclcpp::Node {
         OusterDriver();
         ~OusterDriver();
 
-        void readSettingsFromINI(std::string pathToIniFile = "/home/ntkot/ros2_ws/src/turtle_lidar/config.ini");
+        void readSettingsFromINI(std::string pathToIniFile = "./config.ini");
         int runDriver();
         void initialize();
         void initializePublishers();
