@@ -16,10 +16,10 @@ class PointcloudProcessing {
         int segments;
         int bins;
         float minAzim, maxAzim, minRad, maxRad, shiftAngle, shiftRad;
-        BaseFilter bF;
-        GroundFilter gF;
-        ClusterSettings cS;
-        ClassifierSettings clS;
+        BaseFilter baseFilter;
+        GroundFilter groundFilter;
+        ClusterSettings clusterSettings;
+        ClassifierSettings classifierSettings;
 
         std::unique_ptr<Eigen::VectorXf> x,y,z,azim,r;
         std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> intensity;

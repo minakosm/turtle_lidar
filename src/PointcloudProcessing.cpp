@@ -12,10 +12,10 @@
 #include <iostream>
 #include <algorithm>
 
-PointcloudProcessing::PointcloudProcessing() : bF(segments, bins), gF(), cS(), clS(), lines(segments, bins) {
+PointcloudProcessing::PointcloudProcessing() : baseFilter(segments, bins), groundFilter(), clusterSettings(), classifierSettings(), lines(segments, bins) {
 }
 
-PointcloudProcessing::PointcloudProcessing(int pclSize) : bF(segments, bins), gF(), cS(), clS(), lines(segments, bins) {
+PointcloudProcessing::PointcloudProcessing(int pclSize) : baseFilter(segments, bins), groundFilter(), clusterSettings(), classifierSettings(), lines(segments, bins) {
     x = std::make_unique<Eigen::VectorXf>(pclSize);
     y = std::make_unique<Eigen::VectorXf>(pclSize);
     z = std::make_unique<Eigen::VectorXf>(pclSize);
@@ -28,7 +28,7 @@ PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X,
                                            Eigen::VectorXf *Y, 
                                            Eigen::VectorXf *Z, 
                                            Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities) : 
-                                           bF(segments, bins), gF(), cS(), clS(), x(X), y(Y), z(Z), intensity(intensities), 
+                                           baseFilter(segments, bins), groundFilter(), clusterSettings(), classifierSettings(), x(X), y(Y), z(Z), intensity(intensities), 
                                            azim(new Eigen::VectorXf(X->rows())), 
                                            r(new Eigen::VectorXf(X->rows())), 
                                            lines(segments, bins) {
@@ -39,7 +39,7 @@ PointcloudProcessing::PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X,
                                            std::unique_ptr<Eigen::VectorXf> &Y, 
                                            std::unique_ptr<Eigen::VectorXf> &Z, 
                                            std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities) : 
-                                           bF(segments, bins), gF(), cS(), clS(), 
+                                           baseFilter(segments, bins), groundFilter(), clusterSettings(), classifierSettings(), 
                                            azim(new Eigen::VectorXf(X->rows())), 
                                            r(new Eigen::VectorXf(X->rows())), 
                                            lines(segments, bins) {
@@ -58,7 +58,7 @@ void PointcloudProcessing::polarInit() {
     //*azim = y->binaryExpr((*x), [] (float a, float b) {return std::atan2(a,b);});
     (*r).noalias() = (x->array().square() + y->array().square()).sqrt().matrix();
     prototypePointsMatrix = Eigen::MatrixXi::Constant(segments, bins, -1);
-    if(bF.filterEnabled == 0) {
+    if(baseFilter.filterEnabled == 0) {
         groundArray = Eigen::Array<bool, Eigen::Dynamic, 1>::Constant(partitionMatrix.rows(),1,false);
         partitionMatrix.resize(x->size(), Eigen::NoChange);
     }
@@ -69,9 +69,9 @@ void PointcloudProcessing::printPointcloudSize() {
 }
 
 void PointcloudProcessing::printSettings() {
-    std::cout << "Base Filter settings:\n" << bF 
-              << "Ground Filter settings:\n" << gF
-              << "Clustering settings:\n" << cS << std::endl;
+    std::cout << "Base Filter settings:\n" << baseFilter 
+              << "Ground Filter settings:\n" << groundFilter
+              << "Clustering settings:\n" << clusterSettings << std::endl;
 }
 
 Eigen::VectorXf PointcloudProcessing::getX() {
@@ -107,9 +107,9 @@ Eigen::VectorXi PointcloudProcessing::getClusters() {
 }
 
 void PointcloudProcessing::filter() {
-	removePoints((((azim->array() > bF.maxAzim).cast<int>() + (azim->array() < bF.minAzim).cast<int>())*(int)bF.filterAzim +
-                  ((r->array() > bF.maxRad).cast<int>() + (r->array() < bF.minRad).cast<int>())*(int)bF.filterRad +
-                  ((z->array() > bF.maxZ).cast<int>() + (z->array() < bF.minZ).cast<int>())*(int)bF.filterZ).cast<bool>()); 
+	removePoints((((azim->array() > baseFilter.maxAzim).cast<int>() + (azim->array() < baseFilter.minAzim).cast<int>())*(int)baseFilter.filterAzim +
+                  ((r->array() > baseFilter.maxRad).cast<int>() + (r->array() < baseFilter.minRad).cast<int>())*(int)baseFilter.filterRad +
+                  ((z->array() > baseFilter.maxZ).cast<int>() + (z->array() < baseFilter.minZ).cast<int>())*(int)baseFilter.filterZ).cast<bool>()); 
     partitionMatrix.resize(x->size(), Eigen::NoChange);
     groundArray = Eigen::Array<bool, Eigen::Dynamic, 1>::Constant(partitionMatrix.rows(),1,false);
 }
@@ -268,7 +268,7 @@ SegmentLines PointcloudProcessing::segmentGroundLinesFit(int segment) {
             if(point != -1) {
                 if(Pl.size() > 0) {
                     Eigen::VectorXf potentialLine = getLine(updateLine((*r)(point), (*z)(point), currentLineProperties));
-                    if ((std::abs(potentialLine(0)) < gF.mMax) && ((potentialLine(0) > gF.mSmall) ||  ((potentialLine(1) < gF.bMax) && (potentialLine(1) > gF.bMin))) && (potentialLine(2) < gF.maxRmse)) {
+                    if ((std::abs(potentialLine(0)) < groundFilter.mMax) && ((potentialLine(0) > groundFilter.mSmall) ||  ((potentialLine(1) < groundFilter.bMax) && (potentialLine(1) > groundFilter.bMin))) && (potentialLine(2) < groundFilter.maxRmse)) {
                         Pl.push_back(point);
                         currentLineProperties = updateLine((*r)(point), (*z)(point), currentLineProperties);
                         lastIndex = i;
@@ -285,7 +285,7 @@ SegmentLines PointcloudProcessing::segmentGroundLinesFit(int segment) {
                         currentLineProperties = Eigen::Matrix <float, 6, 1>::Zero();
                     }
                 }
-                else if((distPointFromLine((*r)(point),(*z)(point),previousLineParam) < gF.dPrev) || lineVector.size == 0) {
+                else if((distPointFromLine((*r)(point),(*z)(point),previousLineParam) < groundFilter.dPrev) || lineVector.size == 0) {
                     lastIndex = i;
                     Pl.push_back(point);
                     currentLineProperties = updateLine((*r)(point), (*z)(point), currentLineProperties);
@@ -326,7 +326,7 @@ void PointcloudProcessing::groundClassifier() {
 			paramM(i) = lineVector.linesMatrix(2*lineSelection);
 			paramB(i) = lineVector.linesMatrix(2*lineSelection+1);
         }
-	groundArray = ((((-paramM).cwiseProduct((*r))+(*z)-paramB).cwiseAbs()).cwiseQuotient((paramM.cwiseProduct(paramM)+Eigen::VectorXf::Constant(r->rows(),1)).cwiseSqrt())).array() < gF.dGround;
+	groundArray = ((((-paramM).cwiseProduct((*r))+(*z)-paramB).cwiseAbs()).cwiseQuotient((paramM.cwiseProduct(paramM)+Eigen::VectorXf::Constant(r->rows(),1)).cwiseSqrt())).array() < groundFilter.dGround;
 }
 
 void PointcloudProcessing::filterGround() {
@@ -345,9 +345,9 @@ void PointcloudProcessing::filterGround() {
 }
 
 void PointcloudProcessing::nonGroundClustering() {
-    if(cS.clusteringMethod == 0)
+    if(clusterSettings.clusteringMethod == 0)
         hierarchicalClustering();
-    else if(cS.clusteringMethod == 1)
+    else if(clusterSettings.clusteringMethod == 1)
         DBSCANclustering();
     clustersVectorFun();
 }
@@ -367,7 +367,7 @@ void PointcloudProcessing::hierarchicalClustering() {
 	int* labels = new int[N];
     condensedDistances();
 	hclust_fast(N, condensedClusterDistances.data(), 0, merge, height);
-	cutree_cdist(N, merge, height, (double)cS.hierClusterDist, labels);
+	cutree_cdist(N, merge, height, (double)clusterSettings.hierClusterDist, labels);
     clusters = Eigen::Map<Eigen::VectorXi>(labels, N);
     delete[] merge;
     delete[] height;
@@ -384,7 +384,7 @@ void PointcloudProcessing::DBSCANclustering() {
 		points.at(i).z = (*cart)(i,2);
 		points.at(i).clusterID = -1;
 	}
-	DBSCAN db(cS.DBminPts, cS.DBepsilon, points);
+	DBSCAN db(clusterSettings.DBminPts, clusterSettings.DBepsilon, points);
 	db.run();
 	for(int i = 0; i < N; i++)
 		clusters(i) = db.m_points.at(i).clusterID-1;
@@ -418,26 +418,26 @@ Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::
             
             // START OF Cluster check and reconstruct section
             zCluster = sliceVector<float>(*z, mask);
-            if(zCluster.size() > clS.ignoreClusterPointsHigh) {
+            if(zCluster.size() > classifierSettings.ignoreClusterPointsHigh) {
                 ignoreClusters(i) = true;
                 continue;
             }
             xCluster = sliceVector<float>(*x, mask);
             yCluster = sliceVector<float>(*y, mask);
             float meanZ = zCluster.mean();
-            if(clS.reconstructCluster == true) {
+            if(classifierSettings.reconstructCluster == true) {
                 float meanX = xCluster.mean();
                 float meanY = yCluster.mean();
-                mask = (mask.cast<int>() + ( ((((x->array()-meanX)*(x->array()-meanX) + (y->array()-meanY)*(y->array()-meanY)) < clS.r*clS.r).cast<int>()) * ( (((z->array()-meanZ) > clS.zMin).cast<int>()) * (((z->array()-meanZ) < clS.zMax).cast<int>()) ).cast<int>())).cast<bool>();
+                mask = (mask.cast<int>() + ( ((((x->array()-meanX)*(x->array()-meanX) + (y->array()-meanY)*(y->array()-meanY)) < classifierSettings.r*classifierSettings.r).cast<int>()) * ( (((z->array()-meanZ) > classifierSettings.zMin).cast<int>()) * (((z->array()-meanZ) < classifierSettings.zMax).cast<int>()) ).cast<int>())).cast<bool>();
                 zCluster2 = sliceVector<float>(*z, mask);
-                if(zCluster2.size() > clS.ignoreClusterPointsHigh || zCluster2.size() < clS.ignoreClusterPointsLow) {
+                if(zCluster2.size() > classifierSettings.ignoreClusterPointsHigh || zCluster2.size() < classifierSettings.ignoreClusterPointsLow) {
                     ignoreClusters(i) = true;
                     continue;
                 }
                 xCluster2 = sliceVector<float>(*x, mask);
                 yCluster2 = sliceVector<float>(*y, mask);
             }
-            else if(zCluster.size() < clS.ignoreClusterPointsLow) {
+            else if(zCluster.size() < classifierSettings.ignoreClusterPointsLow) {
                     ignoreClusters(i) = true;
                     continue;
             }
@@ -445,11 +445,11 @@ Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::
             
             
             Eigen::Vector3f circle;
-            if((clS.reconstructCluster == true && clS.useOriginalClusterCircle == true) || (clS.reconstructCluster == false))
+            if((classifierSettings.reconstructCluster == true && classifierSettings.useOriginalClusterCircle == true) || (classifierSettings.reconstructCluster == false))
                 circle = regressCircle(xCluster, yCluster);
             else
                 circle = regressCircle(xCluster2, yCluster2);
-            if(clS.reconstructCluster == true)
+            if(classifierSettings.reconstructCluster == true)
                 X.row(i) << circle(2), clusterDistFromGround(circle(0), circle(1), zCluster2.mean()), zCluster2.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster2.mean()*zCluster2.mean());
             else
                 X.row(i) << circle(2), clusterDistFromGround(circle(0), circle(1), zCluster.mean()), zCluster.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster.mean()*zCluster.mean());
@@ -498,7 +498,7 @@ Eigen::Vector3f PointcloudProcessing::regressCircle(const Eigen::VectorXf &xC, c
     Eigen::MatrixXf J(xC.size(), 3);
     J.col(2) = Eigen::Matrix<float, Eigen::Dynamic, 1>::Constant(xC.size(), -1.0f);
     Eigen::VectorXf f(xC.size());
-    for(int i = 0; (i < clS.regressCircleMaxIter && diff > clS.regressCircleDiffThreshold); i++) {
+    for(int i = 0; (i < classifierSettings.regressCircleMaxIter && diff > classifierSettings.regressCircleDiffThreshold); i++) {
         J.col(0) = (u(0)-xC.array()) / ((u(0)-xC.array()) * (u(0)-xC.array()) + (u(1)-yC.array()) * (u(1)-yC.array())).sqrt();
         J.col(1) = (u(1)-yC.array()) / ((u(0)-xC.array()) * (u(0)-xC.array()) + (u(1)-yC.array()) * (u(1)-yC.array())).sqrt();
         f = ((u(0)-xC.array())*(u(0)-xC.array()) + (u(1)-yC.array()) * (u(1)-yC.array())).sqrt() - u(2);
