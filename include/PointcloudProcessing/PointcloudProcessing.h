@@ -36,7 +36,7 @@ class PointcloudProcessing {
         Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> clusterPositions;
         
         void polarInit();
-        void removePoints(const Eigen::Array <bool, Eigen::Dynamic, 1> &logicalVector);
+        bool removePoints(const Eigen::Array <bool, Eigen::Dynamic, 1> &logicalVector);
         Eigen::VectorXf getLine(const Eigen::VectorXf &properties);
         Eigen::VectorXf updateLine(float x, float y, const Eigen::VectorXf &properties);
         SegmentLines segmentGroundLinesFit(int segment);
@@ -48,16 +48,22 @@ class PointcloudProcessing {
         float clusterDistFromGround(float x, float y, float z);
         Eigen::Vector3f regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC);
     public:
-        PointcloudProcessing();
-        PointcloudProcessing(int pclSize);
+        PointcloudProcessing(std::string pathToConfigFile = "./config.ini");
+
+        PointcloudProcessing(int pclSize, std::string pathToConfigFile = "./config.ini");
+
         PointcloudProcessing(Eigen::VectorXf *X, 
                              Eigen::VectorXf *Y, 
                              Eigen::VectorXf *Z, 
-                             Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities);
+                             Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities,
+                             std::string pathToConfigFile = "./config.ini");
+
         PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, 
                              std::unique_ptr<Eigen::VectorXf> &Y, 
                              std::unique_ptr<Eigen::VectorXf> &Z, 
-                             std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities);
+                             std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities,
+                             std::string pathToConfigFile = "./config.ini");
+
         void printPointcloudSize();
         void printSettings(); 
         
@@ -70,20 +76,22 @@ class PointcloudProcessing {
         Eigen::VectorXi getClusters();
         Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> getCart();
 
-        void filter();
+        bool filter();
         void calculatePartitionMatrix();
         void calculatePrototypePointsMatrix();
         void checkPrototypePointsMatrix();
         void groundLinesFit();
         void groundClassifier();
-        void filterGround();
+        bool filterGround();
         void nonGroundClustering();
-        Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> clusterClassifier(GNBC &nbc);
-        Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> pipeline(std::unique_ptr<Eigen::VectorXf> &X, 
+        bool clusterClassifier(GNBC &nbc,
+                               Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> &conePos);
+        int pipeline(std::unique_ptr<Eigen::VectorXf> &X, 
                                                                            std::unique_ptr<Eigen::VectorXf> &Y, 
                                                                            std::unique_ptr<Eigen::VectorXf> &Z,
                                                                            std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities, 
-                                                                           GNBC &nbc);
+                                                                           GNBC &nbc,
+                                                                           Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> &conePos);
 };
 
 #endif // POINTCLOUD_PROCESSING_H_INCLUDED

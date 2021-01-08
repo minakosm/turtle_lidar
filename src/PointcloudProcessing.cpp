@@ -12,10 +12,17 @@
 #include <iostream>
 #include <algorithm>
 
-PointcloudProcessing::PointcloudProcessing() : baseFilter(segments, bins), groundFilter(), clusterSettings(), classifierSettings(), lines(segments, bins) {
+PointcloudProcessing::PointcloudProcessing(std::string pathToConfigFile) : baseFilter(segments, bins, pathToConfigFile), groundFilter(pathToConfigFile), clusterSettings(pathToConfigFile), classifierSettings(pathToConfigFile), lines(segments, bins) {
+    x = std::make_unique<Eigen::VectorXf>();
+    y = std::make_unique<Eigen::VectorXf>();
+    z = std::make_unique<Eigen::VectorXf>();
+    azim = std::make_unique<Eigen::VectorXf>();
+    r = std::make_unique<Eigen::VectorXf>();
+    intensity = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>();
+    cart = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>>();
 }
 
-PointcloudProcessing::PointcloudProcessing(int pclSize) : baseFilter(segments, bins), groundFilter(), clusterSettings(), classifierSettings(), lines(segments, bins) {
+PointcloudProcessing::PointcloudProcessing(int pclSize, std::string pathToConfigFile) : baseFilter(segments, bins, pathToConfigFile), groundFilter(pathToConfigFile), clusterSettings(pathToConfigFile), classifierSettings(pathToConfigFile), lines(segments, bins) {
     x = std::make_unique<Eigen::VectorXf>(pclSize);
     y = std::make_unique<Eigen::VectorXf>(pclSize);
     z = std::make_unique<Eigen::VectorXf>(pclSize);
@@ -27,8 +34,9 @@ PointcloudProcessing::PointcloudProcessing(int pclSize) : baseFilter(segments, b
 PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X, 
                                            Eigen::VectorXf *Y, 
                                            Eigen::VectorXf *Z, 
-                                           Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities) : 
-                                           baseFilter(segments, bins), groundFilter(), clusterSettings(), classifierSettings(), x(X), y(Y), z(Z), intensity(intensities), 
+                                           Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities,
+                                           std::string pathToConfigFile) : 
+                                           baseFilter(segments, bins, pathToConfigFile), groundFilter(pathToConfigFile), clusterSettings(pathToConfigFile), classifierSettings(pathToConfigFile), x(X), y(Y), z(Z), intensity(intensities), 
                                            azim(new Eigen::VectorXf(X->rows())), 
                                            r(new Eigen::VectorXf(X->rows())), 
                                            lines(segments, bins) {
@@ -38,8 +46,9 @@ PointcloudProcessing::PointcloudProcessing(Eigen::VectorXf *X,
 PointcloudProcessing::PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, 
                                            std::unique_ptr<Eigen::VectorXf> &Y, 
                                            std::unique_ptr<Eigen::VectorXf> &Z, 
-                                           std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities) : 
-                                           baseFilter(segments, bins), groundFilter(), clusterSettings(), classifierSettings(), 
+                                           std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities,
+                                           std::string pathToConfigFile) : 
+                                           baseFilter(segments, bins, pathToConfigFile), groundFilter(pathToConfigFile), clusterSettings(pathToConfigFile), classifierSettings(pathToConfigFile), 
                                            azim(new Eigen::VectorXf(X->rows())), 
                                            r(new Eigen::VectorXf(X->rows())), 
                                            lines(segments, bins) {
@@ -51,6 +60,8 @@ PointcloudProcessing::PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X,
 }
 
 void PointcloudProcessing::polarInit() {
+    azim->resize(x->size());
+    r->resize(x->size());
     #pragma omp parallel for num_threads(NUM_OF_THREADS)
         for (int i = 0; i < x->size(); i++) {
             (*azim)(i) = std::atan2((*y)(i), (*x)(i));
@@ -106,16 +117,20 @@ Eigen::VectorXi PointcloudProcessing::getClusters() {
     return clusters;
 }
 
-void PointcloudProcessing::filter() {
-	removePoints((((azim->array() > baseFilter.maxAzim).cast<int>() + (azim->array() < baseFilter.minAzim).cast<int>())*(int)baseFilter.filterAzim +
-                  ((r->array() > baseFilter.maxRad).cast<int>() + (r->array() < baseFilter.minRad).cast<int>())*(int)baseFilter.filterRad +
-                  ((z->array() > baseFilter.maxZ).cast<int>() + (z->array() < baseFilter.minZ).cast<int>())*(int)baseFilter.filterZ).cast<bool>()); 
+bool PointcloudProcessing::filter() {
+	if(!removePoints((((azim->array() > baseFilter.maxAzim).cast<int>() + (azim->array() < baseFilter.minAzim).cast<int>())*(int)baseFilter.filterAzim +
+                      ((r->array() > baseFilter.maxRad).cast<int>() + (r->array() < baseFilter.minRad).cast<int>())*(int)baseFilter.filterRad +
+                      ((z->array() > baseFilter.maxZ).cast<int>() + (z->array() < baseFilter.minZ).cast<int>())*(int)baseFilter.filterZ).cast<bool>()))
+        return false; 
     partitionMatrix.resize(x->size(), Eigen::NoChange);
     groundArray = Eigen::Array<bool, Eigen::Dynamic, 1>::Constant(partitionMatrix.rows(),1,false);
+    return true;
 }
 
-void PointcloudProcessing::removePoints(const Eigen::Array <bool, Eigen::Dynamic, 1> &logicalVector) {
+bool PointcloudProcessing::removePoints(const Eigen::Array <bool, Eigen::Dynamic, 1> &logicalVector) {
 	unsigned int size = (logicalVector == 0).count();
+    if(size == 0)
+        return false;
 	unsigned int counter = 0;
 	for(unsigned int i = 0; i < x->rows(); i++) {
 		if(logicalVector(i) == 0) {
@@ -133,6 +148,7 @@ void PointcloudProcessing::removePoints(const Eigen::Array <bool, Eigen::Dynamic
     azim->conservativeResize(size);
     r->conservativeResize(size);
     intensity->conservativeResize(size);
+    return true;
 }
 
 void PointcloudProcessing::calculatePartitionMatrix() {
@@ -329,8 +345,10 @@ void PointcloudProcessing::groundClassifier() {
 	groundArray = ((((-paramM).cwiseProduct((*r))+(*z)-paramB).cwiseAbs()).cwiseQuotient((paramM.cwiseProduct(paramM)+Eigen::VectorXf::Constant(r->rows(),1)).cwiseSqrt())).array() < groundFilter.dGround;
 }
 
-void PointcloudProcessing::filterGround() {
+bool PointcloudProcessing::filterGround() {
     unsigned int size = (groundArray == 0).count();
+    if(size == 0)
+        return false;
 	unsigned int counter = 0;
     cart = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>>(size,3);
     for(unsigned int i = 0; i < x->rows(); i++) {
@@ -342,12 +360,13 @@ void PointcloudProcessing::filterGround() {
 		}
 	}
     intensity->conservativeResize(size);
+    return true;
 }
 
 void PointcloudProcessing::nonGroundClustering() {
     if(clusterSettings.clusteringMethod == 0)
         hierarchicalClustering();
-    else if(clusterSettings.clusteringMethod == 1)
+    else if(clusterSettings.clusteringMethod != 0)
         DBSCANclustering();
     clustersVectorFun();
 }
@@ -390,6 +409,9 @@ void PointcloudProcessing::DBSCANclustering() {
 		clusters(i) = db.m_points.at(i).clusterID-1;
 }
 
+// Function that extends cluster vector resulted from clustering method
+// to a larger vector containing labels for ground points too (-1 value),
+// needed for pointcloud reconstruction
 void PointcloudProcessing::clustersVectorFun() {
     Eigen::VectorXi clustersVector = Eigen::VectorXi::Constant(groundArray.rows(),-1);
     numberOfClusters = clusters.maxCoeff()+1;
@@ -405,10 +427,12 @@ void PointcloudProcessing::clustersVectorFun() {
     clusters = clustersVector;
 }
 
-Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::clusterClassifier(GNBC &nbc) {
+bool PointcloudProcessing::clusterClassifier(GNBC &nbc, Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> &conePos) {
+    if(numberOfClusters == 0)
+        return false;
     Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero(numberOfClusters, 3);
     Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> pos = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero(numberOfClusters, 2);
-    Eigen::Array <bool, Eigen::Dynamic, 1> coneClusters = Eigen::Matrix<bool,Eigen::Dynamic,1>::Constant(numberOfClusters, false).array();
+    Eigen::Array <bool, Eigen::Dynamic, 1> coneClustersLabels = Eigen::Matrix<bool, Eigen::Dynamic, 1>::Constant(numberOfClusters, false).array();
     Eigen::Array <bool, Eigen::Dynamic, 1> ignoreClusters = Eigen::Matrix<bool, Eigen::Dynamic, 1>::Constant(numberOfClusters, false).array();
     //#pragma omp parallel for ordered num_threads(NUM_OF_THREADS) shared(X)
         for(int i = 0; i < numberOfClusters; i++) {
@@ -458,14 +482,18 @@ Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::
     Eigen::VectorXi labels = nbc.labelMatrix(nbc.predictMatrix(X));
     //for(int i = 0; i < X.rows(); i++)
         //std::cout << "X = " << X.row(i) << "\nlabel = " << labels(i) << std::endl << std::endl << std::endl;
-    coneClusters = ((ignoreClusters == false).select(labels.array().cast<bool>(), false));
-    Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> pos2 = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero((coneClusters == true).count(), 2);
-    int counter = 0;
-    for(int i = 0; i < numberOfClusters; i++) {
-        if(coneClusters(i) == true)
-            pos2.row(counter++) = pos.row(i);
+    coneClustersLabels = ((ignoreClusters == false).select(labels.array().cast<bool>(), false));
+    if((coneClustersLabels == true).count() == 0)
+        return false;
+    else {
+        conePos.resize((coneClustersLabels == true).count(), 2);
+        int counter = 0;
+        for(int i = 0; i < numberOfClusters; i++) {
+            if(coneClustersLabels(i) == true)
+                conePos.row(counter++) = pos.row(i);
+        }
+        return true;
     }
-    return pos2;
 }
 
 float PointcloudProcessing::clusterDistFromGround(float x, float y, float z) {
@@ -493,7 +521,7 @@ float PointcloudProcessing::clusterDistFromGround(float x, float y, float z) {
 
 Eigen::Vector3f PointcloudProcessing::regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC) {
     Eigen::Vector3f u;
-    u << (xC.sum() / xC.size()), (yC.sum() / yC.size()), 0.04;
+    u << xC.mean(), yC.mean(), 0.04;
     float diff = std::numeric_limits<float>::max(); 
     Eigen::MatrixXf J(xC.size(), 3);
     J.col(2) = Eigen::Matrix<float, Eigen::Dynamic, 1>::Constant(xC.size(), -1.0f);
@@ -509,20 +537,41 @@ Eigen::Vector3f PointcloudProcessing::regressCircle(const Eigen::VectorXf &xC, c
     return u;
 }
 
-Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X, std::unique_ptr<Eigen::VectorXf> &Y, std::unique_ptr<Eigen::VectorXf> &Z, std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities, GNBC &nbc) {
+int PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X, 
+                                   std::unique_ptr<Eigen::VectorXf> &Y, 
+                                   std::unique_ptr<Eigen::VectorXf> &Z, 
+                                   std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities, 
+                                   GNBC &nbc,
+                                   Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> &conePos) {
     this->x.swap(X);
     this->y.swap(Y);
     this->z.swap(Z);
     this->intensity.swap(intensities);
+    if(x->size() == 0)
+        return -1;
+    // std::cout << "Swapping completed\n";
     polarInit();
-    filter();
+    // std::cout << "Polar coordinates calculated completed\n";
+    if(!filter())
+        return -2;
+    // std::cout << "Main filter applied\n";
     calculatePartitionMatrix();
+    // std::cout << "Partition Matrix calculated\n";
     calculatePrototypePointsMatrix();
+    // std::cout << "Prototype Matrix calculated\n";
     checkPrototypePointsMatrix();
+    // std::cout << "Prototype Matrix checked\n";
     groundLinesFit();
+    // std::cout << "Ground lines fitted\n";
     groundClassifier();
-    filterGround();
+    // std::cout << "Ground points found\n";
+    if(!filterGround())
+        return -3;
+    // std::cout << "Ground points filtered\n";
     nonGroundClustering();
-    Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos = clusterClassifier(nbc);
-    return conePos;
+    // std::cout << "Non-Ground points clustered\n";
+    if(!clusterClassifier(nbc, conePos))
+        return -4;
+    // std::cout << "Non-Ground clusters classified\n";
+    return 0;
 }

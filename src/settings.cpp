@@ -80,7 +80,6 @@ ClassifierSettings::ClassifierSettings(std::string filepath) {
     r = pt.get<float>("Classifier.r");
     zMin = pt.get<float>("Classifier.zMin");
     zMax = pt.get<float>("Classifier.zMax");
-    furtherReconstructDist = pt.get<float>("Classifier.furtherReconstructDist");
     regressCircleDiffThreshold = pt.get<float>("Classifier.regressCircleDiffThreshold");
 }
 
@@ -115,6 +114,5 @@ std::ostream &operator<<(std::ostream &os, ClassifierSettings const &m) {
     return os << "ignoreClusterPointsLow = " << m.ignoreClusterPointsLow << "\nignoreClusterPointsHigh = " << m.ignoreClusterPointsHigh 
               << "\nregressCircleMaxIter = " << m.regressCircleMaxIter << "\nreconstructCluster = " << m.reconstructCluster 
               << "\nuseOriginalClusterCircle = " << m.useOriginalClusterCircle << "\nr = " << m.r << "\nzMin = " << m.zMin << "\nzMax = " << m.zMax
-              << "\nfurtherReconstructDist = " << m.furtherReconstructDist << "\nregressCircleDiffThreshold = " << m.regressCircleDiffThreshold 
-              << std::endl << std::endl;
+              << "\nregressCircleDiffThreshold = " << m.regressCircleDiffThreshold << std::endl << std::endl;
 }

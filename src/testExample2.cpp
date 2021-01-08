@@ -41,7 +41,8 @@ int main() {
 	
 	a1 = chrono::high_resolution_clock::now();
 	PointcloudProcessing lidarPipeline;
-	Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos = lidarPipeline.pipeline(x, y, z, intensities, nbc);
+	Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos;
+    lidarPipeline.pipeline(x, y, z, intensities, nbc, conePos);
 	a2 = chrono::high_resolution_clock::now();
 	cout << "--Pipeline duration = " << chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "μs" << endl;
 

@@ -29,7 +29,7 @@ struct ClusterSettings {
 struct ClassifierSettings {
     int ignoreClusterPointsLow, ignoreClusterPointsHigh, regressCircleMaxIter;
     bool reconstructCluster, useOriginalClusterCircle;
-    float r, zMin, zMax, furtherReconstructDist, regressCircleDiffThreshold;
+    float r, zMin, zMax, regressCircleDiffThreshold;
     
     ClassifierSettings(std::string filepath = "./config.ini");
 };

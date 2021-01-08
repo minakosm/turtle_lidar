@@ -90,7 +90,8 @@ int main() {
 	cout << "--GNBC declaration and training duration = " << chrono::duration_cast<chrono::microseconds>(i2 - i1).count() << "μs" << endl;
     
     auto j1 = chrono::high_resolution_clock::now();
-    Matrix <float, Dynamic, 2, RowMajor> conePos = pcl.clusterClassifier(nbc);
+    Matrix <float, Dynamic, 2, RowMajor> conePos;
+    pcl.clusterClassifier(nbc, conePos);
     auto j2 = chrono::high_resolution_clock::now();
     cout << "--Classifier duration = " << chrono::duration_cast<chrono::microseconds>(j2 - j1).count() << "μs" << endl;
 
