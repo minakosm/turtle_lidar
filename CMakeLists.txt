@@ -19,7 +19,7 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(PkgConfig REQUIRED)
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(Eigen3 REQUIRED)
 find_package(Threads REQUIRED)
 find_package(jsoncpp REQUIRED)
 find_package(ament_index_cpp)
@@ -36,9 +36,11 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/gaussian-naive-bayes-classifier)
 
 # Ouster client library section
-add_library(ouster_client SHARED modules/ouster_client/src/os1.cpp 
-                                modules/ouster_client/src/os1_util.cpp)
-target_link_libraries(ouster_client jsoncpp_lib)
+add_library(ouster_client SHARED modules/ouster_client/src/client.cpp 
+                                 modules/ouster_client/src/types.cpp
+                                 modules/ouster_client/src/netcompat.cpp
+                                 modules/ouster_client/src/lidar_scan.cpp)
+target_link_libraries(ouster_client PUBLIC jsoncpp_lib Eigen3::Eigen)
 target_include_directories(ouster_client SYSTEM PRIVATE ${jsoncpp_INCLUDE_DIRS})
 
 # FastCluster (Hierarchical Clustering library for C++)
