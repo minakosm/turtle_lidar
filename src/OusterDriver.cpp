@@ -10,8 +10,10 @@
 
 #include "OusterDriver.h"
 #include "PointcloudProcessing.h"
-#include "os1.h"
-#include "os1_packet.h"
+
+#include "ouster/client.h"
+#include "ouster/types.h"
+#include "ouster/impl/parsing.h"
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
@@ -27,27 +29,27 @@ OusterDriver::OusterDriver() : Node("OusterDriver"), pointcloudProcessor() {
     counter = 0;
     scan_counter = 0;
     switch(lidarMode) {
-        case ouster::OS1::MODE_512x10:
+        case ouster::sensor::MODE_512x10:
             width = 512;
             rotationRate = 10;
             packetsPerScan = 32;
             break;
-        case ouster::OS1::MODE_512x20:
+        case ouster::sensor::MODE_512x20:
             width = 512;
             rotationRate = 20;
             packetsPerScan = 32;
             break;
-        case ouster::OS1::MODE_1024x10:
+        case ouster::sensor::MODE_1024x10:
             width = 1024;
             rotationRate = 10;
             packetsPerScan = 64;
             break;
-        case ouster::OS1::MODE_1024x20:
+        case ouster::sensor::MODE_1024x20:
             width = 1024;
             rotationRate = 20;
             packetsPerScan = 64;
             break;
-        case ouster::OS1::MODE_2048x10:
+        case ouster::sensor::MODE_2048x10:
             width = 2048;
             rotationRate = 10;
             packetsPerScan = 128;
@@ -77,13 +79,13 @@ void OusterDriver::readSettingsFromINI(std::string pathToIniFile) {
 
     host_ip = pt.get<std::string>("Lidar.hostIP");
     lidar_ip = pt.get<std::string>("Lidar.lidarIP");
-    lidarMode = (ouster::OS1::lidar_mode)pt.get<int>("Lidar.lidarMode");
-    timestampMode = (ouster::OS1::timestamp_mode)pt.get<int>("Lidar.timestampMode");
+    lidarMode = (ouster::sensor::lidar_mode)pt.get<int>("Lidar.lidarMode");
+    timestampMode = (ouster::sensor::timestamp_mode)pt.get<int>("Lidar.timestampMode");
     publishRaw = pt.get<bool>("Lidar.publishRawPointcloud");
 }
 
 int OusterDriver::runDriver() {
-    cli = ouster::OS1::init_client(lidar_ip, host_ip, lidarMode, timestampMode);
+    cli = ouster::sensor::init_client(lidar_ip, host_ip, lidarMode, timestampMode);
     if (!cli) {
         RCLCPP_ERROR(this->get_logger(), "Failed to connect to client at: %s", lidar_ip);
         return 1;
@@ -92,17 +94,17 @@ int OusterDriver::runDriver() {
     initialize();
     RCLCPP_INFO(this->get_logger(), "Lidar Driver Initialized");
 
-    lidar_buf = new uint8_t[ouster::OS1::lidar_packet_bytes + 1];
+    lidar_buf = new uint8_t[ouster::sensor::lidar_packet_bytes_OS1_32 + 1];
 
-    ouster::OS1::client_state st;
+    ouster::sensor::client_state st;
     while (rclcpp::ok()) {
-        st = ouster::OS1::poll_client(*cli, 1);
-        if (st & ouster::OS1::ERROR) {
+        st = ouster::sensor::poll_client(*cli, 1);
+        if (st & ouster::sensor::CLIENT_ERROR) {
             RCLCPP_ERROR(this->get_logger(), "Lidar returned error status");
             return 3;
         }
-        else if (st & ouster::OS1::LIDAR_DATA) {
-            if (ouster::OS1::read_lidar_packet(*cli, lidar_buf)) {
+        else if (st & ouster::sensor::LIDAR_DATA) {
+            if (ouster::sensor::read_lidar_packet(*cli, lidar_buf, ouster::sensor::lidar_packet_bytes_OS1_32)) {
                 handleLidar();
             }
             else
@@ -115,9 +117,11 @@ int OusterDriver::runDriver() {
 void OusterDriver::initialize() {
     beam_azim_angles.resize(height);
     beam_alt_angles.resize(height);
-    for(int i = height; i < 64; i++) {
-        beam_azim_angles[i-height] = cli->meta["beam_azimuth_angles"][i].asFloat();
-        beam_alt_angles[i-height] = cli->meta["beam_altitude_angles"][i].asFloat();
+    for(int i = 0; i < height; i++) {
+        beam_azim_angles[i] = cli->meta["beam_azimuth_angles"][i].asFloat();
+        beam_alt_angles[i] = cli->meta["beam_altitude_angles"][i].asFloat();
+        std::cout << "beam_azim_angles[" << i << "] = " << beam_azim_angles[i] << "   "
+                  << "beam_alt_angles[" << i << "] = " << beam_alt_angles[i] << std::endl;
     }
 
     x_lut.resize(width * height);
@@ -188,15 +192,15 @@ void OusterDriver::handleLidar() {
     // RCLCPP_INFO(this->get_logger(), "Handle Lidar Start");
     // mutex lock
 	//#pragma omp parallel for ordered num_threads(2)
-    for(int i = 0; i <  ouster::OS1::columns_per_buffer; i++) {
-	    const uint8_t* col_buf = ouster::OS1::nth_col(i, lidar_buf);
-	    if(ouster::OS1::col_valid(col_buf)) {
-	        times_buffer[counter*ouster::OS1::columns_per_buffer + i] = ouster::OS1::col_timestamp(col_buf);
+    for(int i = 0; i < ouster::sensor::impl::cols_per_packet; i++) {
+	    const uint8_t* col_buf = ouster::sensor::impl::nth_col<32>(i, lidar_buf);
+	    if(ouster::sensor::impl::col_status<32>(col_buf)) {
+	        times_buffer[counter * ouster::sensor::impl::cols_per_packet + i] = ouster::sensor::impl::col_timestamp(col_buf);
 	        const uint8_t* px;
 	        for(int j = 0; j < height; j++) {
-	            px = ouster::OS1::nth_px(j+height, col_buf);
-	            ranges_buffer[counter*ouster::OS1::columns_per_buffer*height + i*height + j] = ouster::OS1::px_range(px);
-	            intensities_buffer[counter*ouster::OS1::columns_per_buffer*height + i*height + j] = ouster::OS1::px_reflectivity(px);
+	            px = ouster::sensor::impl::nth_px(j, col_buf);
+	            ranges_buffer[counter*ouster::sensor::impl::cols_per_packet*height + i*height + j] = ouster::sensor::impl::px_range(px);
+	            intensities_buffer[counter*ouster::sensor::impl::cols_per_packet*height + i*height + j] = ouster::sensor::impl::px_reflectivity(px);
 	        }
 	    }
 	}

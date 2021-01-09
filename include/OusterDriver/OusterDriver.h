@@ -10,11 +10,13 @@
 #include <memory>
 
 #include "PointcloudProcessing.h"
-#include "os1.h"
-#include "os1_packet.h"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+
+#include "ouster/client.h"
+#include "ouster/types.h"
+#include "ouster/impl/parsing.h"
 
 #ifndef PI
 #define PI 3.141593
@@ -22,8 +24,8 @@
 
 class OusterDriver : public rclcpp::Node {
     private:
-        ouster::OS1::lidar_mode lidarMode;
-        ouster::OS1::timestamp_mode timestampMode;
+        ouster::sensor::lidar_mode lidarMode;
+        ouster::sensor::timestamp_mode timestampMode;
         std::string lidar_ip, host_ip;
 
         int height;
@@ -34,7 +36,7 @@ class OusterDriver : public rclcpp::Node {
         uint8_t counter;
         int scan_counter;
 
-        std::shared_ptr<ouster::OS1::client> cli;
+        std::shared_ptr<ouster::sensor::client> cli;
         uint8_t* lidar_buf;
         
         std::vector<float> beam_azim_angles;
