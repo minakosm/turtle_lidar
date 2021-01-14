@@ -102,7 +102,7 @@ bool read_lidar_packet(const client& cli, uint8_t* buf,
  * @return true if a lidar packet was successfully read
  */
 bool read_lidar_packet(const client& cli, uint8_t* buf,
-                       const int64_t len);
+                       const size_t len);
 
 /**
  * Read imu data from the sensor. Will not block.
@@ -113,6 +113,16 @@ bool read_lidar_packet(const client& cli, uint8_t* buf,
  * @return true if an imu packet was successfully read
  */
 bool read_imu_packet(const client& cli, uint8_t* buf, const packet_format& pf);
+
+/**
+ * Read imu data from the sensor. Will not block.
+ *
+ * @param cli client returned by init_client associated with the connection
+ * @param buf buffer to which to write imu data. Must be at least
+ * imu_packet_bytes + 1 bytes
+ * @return true if an imu packet was successfully read
+ */
+bool read_imu_packet(const client& cli, uint8_t* buf, const size_t len);
 
 /**
  * Get metadata text blob from the sensor.

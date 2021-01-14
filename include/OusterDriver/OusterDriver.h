@@ -8,11 +8,13 @@
 #include <vector>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 
 #include "PointcloudProcessing.h"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "turtle_interfaces/msg/ouster_imu.hpp"
 
 #include "ouster/client.h"
 #include "ouster/types.h"
@@ -38,6 +40,7 @@ class OusterDriver : public rclcpp::Node {
 
         std::shared_ptr<ouster::sensor::client> cli;
         uint8_t* lidar_buf;
+        uint8_t* imu_buf;
         
         std::vector<float> beam_azim_angles;
         std::vector<float> beam_alt_angles;
@@ -62,19 +65,33 @@ class OusterDriver : public rclcpp::Node {
         sensor_msgs::msg::PointCloud2 rawPointcloudMsg;
         bool publishRaw;
 
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr conesDetectedPublisher;
+        sensor_msgs::msg::PointCloud2 conesDetectedMsg;
+        bool publishCones;
+
+        rclcpp::Publisher<turtle_interfaces::msg::OusterImu>::SharedPtr imuPublisher;
+        turtle_interfaces::msg::OusterImu imuMsg;
+        bool imuMode;
+
+        std_msgs::msg::Header a;
+
         PointcloudProcessing pointcloudProcessor;
 
     public:
-        OusterDriver();
+        OusterDriver(std::string configFilePath = "./config.ini",
+                     std::string coneTrainXFilePath = "./example/simConeTrainDataX.txt",
+                     std::string coneTrainYFilePath = "./example/simConeTrainDataY.txt");
         ~OusterDriver();
 
-        void readSettingsFromINI(std::string pathToIniFile = "./config.ini");
+        void readSettingsFromINI(std::string pathToIniFile);
         int runDriver();
         void initialize();
         void initializePublishers();
         void handleLidar();
+        void handleImu();
         void handleLidarScan();
         void publishRawPointcloud();
+        void publishImu();
 };
 
 #endif // OUSTER_DRIVER_H_INCLUDED

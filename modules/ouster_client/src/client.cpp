@@ -402,12 +402,16 @@ bool read_lidar_packet(const client& cli, uint8_t* buf,
 }
 
 bool read_lidar_packet(const client& cli, uint8_t* buf,
-                       const int64_t len) {
+                       const size_t len) {
     return recv_fixed(cli.lidar_fd, buf, len);
 }
 
 bool read_imu_packet(const client& cli, uint8_t* buf, const packet_format& pf) {
     return recv_fixed(cli.imu_fd, buf, pf.imu_packet_size);
+}
+
+bool read_imu_packet(const client& cli, uint8_t* buf, const size_t len) {
+    return recv_fixed(cli.imu_fd, buf, len);
 }
 
 }  // namespace sensor

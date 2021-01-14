@@ -5,6 +5,7 @@
 #include "SimDriver.h"
 #include "rclcpp/qos.hpp"
 #include "turtle_common/fsmath_conversions.hpp"
+#include "utils.h"
 
 SimDriver::SimDriver(std::string filepath, 
                      std::string trainXFilePath, 

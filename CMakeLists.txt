@@ -24,6 +24,7 @@ find_package(Threads REQUIRED)
 find_package(jsoncpp REQUIRED)
 find_package(ament_index_cpp)
 find_package(turtle_common REQUIRED)
+find_package(turtle_interfaces REQUIRED)
 #find_package(Boost REQUIRED COMPONENTS property_tree)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -68,7 +69,7 @@ add_library(OusterDriver SHARED src/OusterDriver.cpp)
 target_link_libraries(OusterDriver ouster_client)
 target_link_libraries(OusterDriver Threads::Threads)
 target_link_libraries(OusterDriver PointcloudProcessing)
-ament_target_dependencies(OusterDriver rclcpp std_msgs sensor_msgs)
+ament_target_dependencies(OusterDriver rclcpp std_msgs sensor_msgs turtle_interfaces)
 
 # Simulation Lidar driver library section
 add_library(SimDriver SHARED src/SimDriver.cpp)
@@ -86,7 +87,7 @@ target_link_libraries(testExample2 PointcloudProcessing)
 # ROS2 Ouster Driver Executable
 add_executable(ouster_driver src/main_ouster.cpp)
 target_link_libraries(ouster_driver OusterDriver)
-ament_target_dependencies(ouster_driver rclcpp std_msgs sensor_msgs)
+ament_target_dependencies(ouster_driver rclcpp)
 
 # ROS2 Simulation Driver Executable
 add_executable(sim_driver src/main_sim.cpp)
