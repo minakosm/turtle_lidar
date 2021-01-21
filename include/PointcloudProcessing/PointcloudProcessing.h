@@ -48,21 +48,21 @@ class PointcloudProcessing {
         float clusterDistFromGround(float x, float y, float z);
         Eigen::Vector3f regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC);
     public:
-        PointcloudProcessing(std::string pathToConfigFile = "./config.ini");
+        PointcloudProcessing(std::string pathToConfigFile = "./lidarConfig.ini");
 
-        PointcloudProcessing(int pclSize, std::string pathToConfigFile = "./config.ini");
+        PointcloudProcessing(int pclSize, std::string pathToConfigFile = "./lidarConfig.ini");
 
         PointcloudProcessing(Eigen::VectorXf *X, 
                              Eigen::VectorXf *Y, 
                              Eigen::VectorXf *Z, 
                              Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities,
-                             std::string pathToConfigFile = "./config.ini");
+                             std::string pathToConfigFile = "./lidarConfig.ini");
 
         PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, 
                              std::unique_ptr<Eigen::VectorXf> &Y, 
                              std::unique_ptr<Eigen::VectorXf> &Z, 
                              std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities,
-                             std::string pathToConfigFile = "./config.ini");
+                             std::string pathToConfigFile = "./lidarConfig.ini");
 
         void printPointcloudSize();
         void printSettings(); 

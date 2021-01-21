@@ -9,21 +9,21 @@ struct BaseFilter {
     bool filterEnabled, filterAzim, filterRad, filterZ;
     float maxAzim, minAzim, maxRad, minRad, maxZ, minZ;
 
-    BaseFilter(std::string filepath = "./config.ini");
-    BaseFilter(int &segments, int &bins, std::string filepath = "./config.ini");
+    BaseFilter(std::string filepath = "./lidarConfig.ini");
+    BaseFilter(int &segments, int &bins, std::string filepath = "./lidarConfig.ini");
 };
 
 struct GroundFilter {
     float mMax, mSmall, bMax, bMin, maxRmse, dPrev, dGround;
 
-    GroundFilter(std::string filepath = "./config.ini");
+    GroundFilter(std::string filepath = "./lidarConfig.ini");
 };
 
 struct ClusterSettings {
     int clusteringMethod, DBminPts;
     float hierClusterDist, DBepsilon;
 
-    ClusterSettings(std::string filepath = "./config.ini");
+    ClusterSettings(std::string filepath = "./lidarConfig.ini");
 };
 
 struct ClassifierSettings {
@@ -31,7 +31,7 @@ struct ClassifierSettings {
     bool reconstructCluster, useOriginalClusterCircle;
     float r, zMin, zMax, regressCircleDiffThreshold;
     
-    ClassifierSettings(std::string filepath = "./config.ini");
+    ClassifierSettings(std::string filepath = "./lidarConfig.ini");
 };
 
 std::ostream &operator<<(std::ostream &os, BaseFilter const &m);

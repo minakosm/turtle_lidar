@@ -11,7 +11,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS "-fopenmp")
 set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -fopenmp")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fopenmp")
+set(CMAKE_CXX_FLAGS_RELEASE "-fopenmp")
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -69,7 +69,7 @@ add_library(OusterDriver SHARED src/OusterDriver.cpp)
 target_link_libraries(OusterDriver ouster_client)
 target_link_libraries(OusterDriver Threads::Threads)
 target_link_libraries(OusterDriver PointcloudProcessing)
-ament_target_dependencies(OusterDriver rclcpp std_msgs sensor_msgs turtle_interfaces)
+ament_target_dependencies(OusterDriver rclcpp std_msgs sensor_msgs ament_index_cpp turtle_interfaces)
 
 # Simulation Lidar driver library section
 add_library(SimDriver SHARED src/SimDriver.cpp)
@@ -97,7 +97,8 @@ ament_target_dependencies(sim_driver rclcpp)
 install(TARGETS
     ouster_driver
     sim_driver
-    DESTINATION lib/${PROJECT_NAME})
+    DESTINATION lib/${PROJECT_NAME}
+)
 
 install(
     TARGETS SimDriver OusterDriver PointcloudProcessing ouster_client DBSCAN GNBC LidarSettings FastCluster
@@ -106,6 +107,12 @@ install(
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
     INCLUDES DESTINATION include
+)
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/lidarConfig.ini 
+              ${CMAKE_CURRENT_SOURCE_DIR}/example/simConeTrainDataX.txt 
+              ${CMAKE_CURRENT_SOURCE_DIR}/example/simConeTrainDataY.txt
+    DESTINATION share/${PROJECT_NAME}
 )
 
 ament_package()

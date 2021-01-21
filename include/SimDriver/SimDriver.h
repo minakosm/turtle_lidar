@@ -34,7 +34,6 @@ class SimDriver : public rclcpp::Node {
 
         std::mutex odomMsgMutex;
 
-
         void pclCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
         void odomCallback(const nav_msgs::msg::Odometry::SharedPtr odomMsg);
 
@@ -42,7 +41,7 @@ class SimDriver : public rclcpp::Node {
         void publishDetectedCones(double xPos, double yPos, double yaw);
 
     public:
-        SimDriver(std::string configFilePath = "./config.ini", 
+        SimDriver(std::string configFilePath = "./lidarConfig.ini", 
                   std::string trainXFilePath = "./trainDataX.txt", 
                   std::string trainYFilePath = "./trainDataY.txt");
 };

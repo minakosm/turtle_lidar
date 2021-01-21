@@ -13,6 +13,10 @@ SimDriver::SimDriver(std::string filepath,
                                                    pclProcessor(filepath),
                                                    coneClassifier(),
                                                    conePos() {
+
+    // Print used configuration and train files
+    RCLCPP_INFO(this->get_logger(), "Simulation LiDAR Node is using the following paths:\nConfiguration INI file: %s\nCone classifier TrainX: %s\nCone classifier TrainY: %s\n\n", filepath.c_str(), trainXFilePath.c_str(), trainYFilePath.c_str());
+
     // Initialize unique_ptr(s)
     X = std::make_unique<Eigen::VectorXf>();
     Y = std::make_unique<Eigen::VectorXf>();

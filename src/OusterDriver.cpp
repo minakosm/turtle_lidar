@@ -11,8 +11,11 @@
 
 #include "OusterDriver.h"
 #include "PointcloudProcessing.h"
+#include "bayes.h"
+#include "utils.h"
 
 #include "ouster/client.h"
+#include "ouster/lidar_scan.h"
 #include "ouster/types.h"
 #include "ouster/impl/parsing.h"
 
@@ -27,8 +30,19 @@
 OusterDriver::OusterDriver(std::string configFilePath,
                            std::string coneTrainXFilePath,
                            std::string coneTrainYFilePath) : Node("OusterDriver"), 
-                                                             pointcloudProcessor() {
+                                                             pointcloudProcessor(configFilePath),
+                                                             coneClassifier() {
+    // Read related settings from INI file
     readSettingsFromINI(configFilePath);
+
+    // Cone classifier training
+    Eigen::MatrixXf coneTrainDataX;
+    Eigen::Matrix<int, Eigen::Dynamic, 1> coneTrainDataY;
+    read_matrix<float>(coneTrainXFilePath, coneTrainDataX);
+    read_vector<int>(coneTrainYFilePath, coneTrainDataY);
+    coneClassifier.train(coneTrainDataX, coneTrainDataY);
+
+    // Set object-related parameters to their respective value based on lidar-mode
     height = 32;
     counter = 0;
     scan_counter = 0;
@@ -65,10 +79,12 @@ OusterDriver::OusterDriver(std::string configFilePath,
     times_buffer.resize(width);
     ranges_buffer.resize(width * height);
     intensities_buffer.resize(width * height);
+    encoder_buffer.resize(width * height);
 
     times_process_buffer.resize(width);
     ranges_process_buffer.resize(width * height);
     intensities_process_buffer.resize(width * height);
+    encoder_process_buffer.resize(width * height);
 
     runDriver();
 }
@@ -89,6 +105,7 @@ void OusterDriver::readSettingsFromINI(std::string pathToIniFile) {
     publishRaw = pt.get<bool>("Lidar.publishRawPointcloud");
     publishCones = pt.get<bool>("Lidar.publishConesDetectedPointcloud");
     imuMode = pt.get<bool>("Lidar.imuMode");
+    lidar_origin_to_beam_origin = pt.get<float>("Lidar.lidar_origin_to_beam_origin");
 }
 
 void OusterDriver::initialize() {
@@ -101,23 +118,12 @@ void OusterDriver::initialize() {
                 //   << "beam_alt_angles[" << i << "] = " << beam_alt_angles[i] << std::endl;
     }
 
-    x_lut.resize(width * height);
-    y_lut.resize(width * height);
-    z_lut.resize(width * height);
+    makeXYZLut();
 
     X = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 1>>(width * height);
     Y = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 1>>(width * height);
     Z = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 1>>(width * height);
-
-    for (int i = 0; i < width; i++) {
-        float angle_0 = 2.0 * PI * i / width;
-        for (int j = 0; j < height; j++) {
-            float angle = (beam_azim_angles[j] * PI / 180.0f) + angle_0;
-            x_lut[i*height + j] = std::cos(beam_alt_angles[j] * PI / 180.0f) * std::cos(angle);
-            y_lut[i*height + j] = -std::cos(beam_alt_angles[j] * PI / 180.0f) * std::sin(angle);
-            z_lut[i*height + j] = std::sin(beam_alt_angles[j] * PI / 180.0f);
-        }
-    }
+    intensities = std::make_unique<Eigen::Matrix <uint16_t, Eigen::Dynamic, 1>>(width * height);
 }
 
 void OusterDriver::initializePublishers() {
@@ -130,10 +136,10 @@ void OusterDriver::initializePublishers() {
         rawPointcloudMsg.height = height;
         rawPointcloudMsg.is_bigendian = false;
         rawPointcloudMsg.is_dense = true;
-        rawPointcloudMsg.point_step = 18;
+        rawPointcloudMsg.point_step = 22;
         rawPointcloudMsg.row_step = width * rawPointcloudMsg.point_step;
         
-        rawPointcloudMsg.fields.resize(5);
+        rawPointcloudMsg.fields.resize(6);
 
         rawPointcloudMsg.fields[0].name = "x";
         rawPointcloudMsg.fields[0].offset = 0;
@@ -160,7 +166,12 @@ void OusterDriver::initializePublishers() {
         rawPointcloudMsg.fields[4].datatype = 4;
         rawPointcloudMsg.fields[4].count = 1;
 
-        rawPointcloudMsg.data.resize(rawPointcloudMsg.point_step * X->size());
+        rawPointcloudMsg.fields[5].name = "encoder";
+        rawPointcloudMsg.fields[5].offset = 18;
+        rawPointcloudMsg.fields[5].datatype = 6;
+        rawPointcloudMsg.fields[5].count = 1;
+
+        rawPointcloudMsg.data.resize(rawPointcloudMsg.point_step * width * height);
     }
     if(publishCones) {
         conesDetectedPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/conesDetected", 10);
@@ -193,6 +204,36 @@ void OusterDriver::initializePublishers() {
 
         imuMsg.header.frame_id = "ouster_imu_frame";
     }
+}
+
+void OusterDriver::makeXYZLut() {
+    Eigen::ArrayXf encoder(width * height);
+    Eigen::ArrayXf azimuth(width * height);
+    Eigen::ArrayXf altitude(width * height);
+
+    const float azimuth_radians = PI * 2.0 / width;
+
+    for (int i = 0; i < width; i++) {
+        for (int j = 0; j < height; j++) {
+            encoder(i*height + j) = 2 * PI - (i * azimuth_radians);
+            azimuth(i*height + j) = -beam_azim_angles[j] * PI / 180.0f;
+            altitude(i*height + j) = beam_alt_angles[j] * PI / 180.0f;
+        }
+    }
+
+    directionLut.resize(width * height, 3);
+    offsetLut.resize(width * height, 3);
+
+    // unit vectors for each pixel
+    directionLut.col(0) = (encoder + azimuth).cos() * altitude.cos();
+    directionLut.col(1) = (encoder + azimuth).sin() * altitude.cos();
+    directionLut.col(2) = altitude.sin();
+
+    // offsets due to beam origin
+    offsetLut.col(0) = encoder.cos() - directionLut.col(0);
+    offsetLut.col(1) = encoder.sin() - directionLut.col(1);
+    offsetLut.col(2) = -directionLut.col(2);
+    offsetLut *= lidar_origin_to_beam_origin;
 }
 
 int OusterDriver::runDriver() {
@@ -229,8 +270,10 @@ int OusterDriver::runDriver() {
         }
         else if (st & ouster::sensor::LIDAR_DATA) {
             // auto k1 = std::chrono::high_resolution_clock::now();
-            rawPointcloudMsg.header.stamp = rclcpp::Node::now();
-            conesDetectedMsg.header.stamp = rawPointcloudMsg.header.stamp;
+            if(counter == 0) {
+                rawPointcloudMsg.header.stamp = rclcpp::Node::now();
+                conesDetectedMsg.header.stamp = rawPointcloudMsg.header.stamp;
+            }
             if (ouster::sensor::read_lidar_packet(*cli, lidar_buf, ouster::sensor::lidar_packet_bytes_OS1_32)) {
                 handleLidar();
             }
@@ -245,11 +288,13 @@ int OusterDriver::runDriver() {
 
 void OusterDriver::handleLidar() {
     // RCLCPP_INFO(this->get_logger(), "Handle Lidar Start");
-    // static bool checkEncoderValue = false;
-    // if(checkEncoderValue == false) {
-    //     const uint8_t* col_buf_check = ouster::sensor::impl::nth_col<32>(0, lidar_buf);
-    //     RCLCPP_INFO(this->get_logger(), "Initial encoder value = %lu", ouster::sensor::impl::col_encoder(col_buf_check));
-    //     checkEncoderValue = true;
+    const uint8_t* col_buf_check = ouster::sensor::impl::nth_col<32>(0, lidar_buf);
+    if(ouster::sensor::impl::col_frame_id(col_buf_check) < 20)
+        return;
+    // static int checkEncoderValue = 0;
+    // if(checkEncoderValue < 128) {
+    //     RCLCPP_INFO(this->get_logger(), "\nInitial encoder value = %lu\nInitial frame_id value = %lu\nInitial measurement_id value = %lu", ouster::sensor::impl::col_encoder(col_buf_check), ouster::sensor::impl::col_frame_id(col_buf_check), ouster::sensor::impl::col_measurement_id(col_buf_check));
+    //     checkEncoderValue++;
     // }
 
 	//#pragma omp parallel for ordered num_threads(2)
@@ -259,6 +304,7 @@ void OusterDriver::handleLidar() {
         //     RCLCPP_INFO(this->get_logger(), "\nLidar and ros timestamp difference: %lfms", ((double)(rawPointcloudMsg.header.stamp.sec*1e+9 + (double)rawPointcloudMsg.header.stamp.nanosec - (double)ouster::sensor::impl::col_timestamp(col_buf))) / 1e+6);
 	    if(ouster::sensor::impl::col_status<32>(col_buf)) {
 	        times_buffer[counter * ouster::sensor::impl::cols_per_packet + i] = ouster::sensor::impl::col_timestamp(col_buf);
+            encoder_buffer[counter * ouster::sensor::impl::cols_per_packet + i] = ouster::sensor::impl::col_encoder(col_buf);
 	        const uint8_t* px;
 	        for(int j = 0; j < height; j++) {
 	            px = ouster::sensor::impl::nth_px(j, col_buf);
@@ -273,6 +319,7 @@ void OusterDriver::handleLidar() {
 	    times_buffer.swap(times_process_buffer);
 	    ranges_buffer.swap(ranges_process_buffer);
 	    intensities_buffer.swap(intensities_process_buffer);
+        encoder_buffer.swap(encoder_process_buffer);
 
         std::thread t(&OusterDriver::handleLidarScan, this);
 	    t.detach();
@@ -283,19 +330,49 @@ void OusterDriver::handleLidar() {
 void OusterDriver::handleLidarScan() {
     scan_counter++;
     // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan start");
+
+    // TODO change to a single for-loop
     for(int i = 0; i < width; i++) {
-        for(uint8_t j = 0; j < height; j++) {
-            (*X)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * x_lut[i*height + j];
-            (*Y)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * y_lut[i*height + j];
-            (*Z)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * z_lut[i*height + j];
+        for(int j = 0; j < height; j++) {
+            (*X)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * directionLut(i*height + j, 0) + offsetLut(i*height + j, 0);
+            (*Y)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * directionLut(i*height + j, 1) + offsetLut(i*height + j, 1);
+            (*Z)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * directionLut(i*height + j, 2) + offsetLut(i*height + j, 2);
+            (*intensities)(i*height + j) = intensities_process_buffer[i*height + j];
         }
     }
     if(publishRaw)
         publishRawPointcloud();
-    // if(publishCones)
-    //     publishConesDetected();
+    if(pointcloudProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos)) {
+        RCLCPP_INFO(this->get_logger(), "Found 0 cones");
+        return;
+    }
+    else {
+        RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
+        if(publishCones)
+            publishDetectedCones(0.0, 0.0, 0.0);
+    }
+
     
     // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan end");
+}
+
+void OusterDriver::publishDetectedCones(double xPos, double yPos, double yaw) {
+    Eigen::Matrix<float, Eigen::Dynamic, 1> xCones(conePos.rows()), yCones(conePos.rows());
+    xCones = (conePos.col(0).array()*std::cos(yaw) - conePos.col(1).array()*std::sin(yaw) + xPos).matrix();
+    yCones = (conePos.col(0).array()*std::sin(yaw) + conePos.col(1).array()*std::cos(yaw) + yPos).matrix();
+
+    conesDetectedMsg.width = conePos.rows();
+    conesDetectedMsg.height = 1;
+    conesDetectedMsg.row_step = conesDetectedMsg.width * conesDetectedMsg.point_step;
+    conesDetectedMsg.data.resize(conesDetectedMsg.row_step);
+    uint8_t* ptr = conesDetectedMsg.data.data();
+    for(int i = 0; i < xCones.size(); i++) {
+        *((float*)(ptr + i*conesDetectedMsg.point_step)) = xCones(i);
+        *((float*)(ptr + i*conesDetectedMsg.point_step + 4)) = yCones(i);
+        *((float*)(ptr + i*conesDetectedMsg.point_step + 8)) = 0.0;
+        RCLCPP_INFO(this->get_logger(), "xCone = %f   yCone = %f", xCones(i), yCones(i));
+    }
+    conesDetectedPublisher->publish(conesDetectedMsg);
 }
 
 void OusterDriver::handleImu() {
@@ -314,10 +391,6 @@ void OusterDriver::handleImu() {
     imuPublisher->publish(imuMsg);
 }
 
-void OusterDriver::publishImu() {
-
-}
-
 void OusterDriver::publishRawPointcloud() {
     uint8_t* ptr = rawPointcloudMsg.data.data();
     rawPointcloudMsg.header.stamp = rclcpp::Node::now();
@@ -327,6 +400,7 @@ void OusterDriver::publishRawPointcloud() {
         *((float*)(ptr + i*rawPointcloudMsg.point_step + 8)) = (*Z)(i);
         *((uint32_t*)(ptr + i*rawPointcloudMsg.point_step + 12)) = (uint32_t)(times_process_buffer[i / height] / 1e+6);
         *((uint16_t*)(ptr + i*rawPointcloudMsg.point_step + 16)) = intensities_process_buffer[i];
+        *((uint32_t*)(ptr + i*rawPointcloudMsg.point_step + 18)) = encoder_process_buffer[i];
     }
     rawPointcloudPublisher->publish(rawPointcloudMsg);
 }

@@ -11,6 +11,7 @@
 #include <mutex>
 
 #include "PointcloudProcessing.h"
+#include "bayes.h"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
@@ -34,11 +35,13 @@ class OusterDriver : public rclcpp::Node {
         int width;
         int rotationRate;
         int packetsPerScan;
+        float lidar_origin_to_beam_origin;
 
         uint8_t counter;
         int scan_counter;
 
         std::shared_ptr<ouster::sensor::client> cli;
+        ouster::sensor::sensor_info lidarInfo;
         uint8_t* lidar_buf;
         uint8_t* imu_buf;
         
@@ -48,37 +51,44 @@ class OusterDriver : public rclcpp::Node {
         std::vector<uint64_t> times_buffer;
         std::vector<uint32_t> ranges_buffer;
         std::vector<uint16_t> intensities_buffer;
+        std::vector<uint32_t> encoder_buffer;
         
         std::vector<uint64_t> times_process_buffer;
         std::vector<uint32_t> ranges_process_buffer;
         std::vector<uint16_t> intensities_process_buffer;
+        std::vector<uint32_t> encoder_process_buffer;
         
-        std::vector<float> x_lut;
-        std::vector<float> y_lut;
-        std::vector<float> z_lut;
+        // Lookup tables (LUT) for finding XYZ coordinates faster using pixel range
+        Eigen::Array<float, Eigen::Dynamic, 3> directionLut;
+        Eigen::Array<float, Eigen::Dynamic, 3> offsetLut;
 
-        std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> X;
-        std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> Y;
-        std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> Z;
+        // Variables used in pointcloud processor
+        std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 1>> X, Y, Z;
+        std::unique_ptr<Eigen::Matrix <uint16_t, Eigen::Dynamic, 1>> intensities;
+        Eigen::Matrix<float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos;
 
+        // Variables related to publishing raw pointcloud received from LiDAR sensor (Lidar Sensor Frame)
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr rawPointcloudPublisher;
         sensor_msgs::msg::PointCloud2 rawPointcloudMsg;
         bool publishRaw;
 
+        // Variables related to publishing detected cones' info
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr conesDetectedPublisher;
         sensor_msgs::msg::PointCloud2 conesDetectedMsg;
         bool publishCones;
 
+        // Variables related to publishing LiDAR's IMU (IMU Sensor Frame)
         rclcpp::Publisher<turtle_interfaces::msg::OusterImu>::SharedPtr imuPublisher;
         turtle_interfaces::msg::OusterImu imuMsg;
         bool imuMode;
 
-        std_msgs::msg::Header a;
+        // std_msgs::msg::Header a;
 
         PointcloudProcessing pointcloudProcessor;
-
+        GNBC coneClassifier;
+        
     public:
-        OusterDriver(std::string configFilePath = "./config.ini",
+        OusterDriver(std::string configFilePath = "./lidarConfig.ini",
                      std::string coneTrainXFilePath = "./example/simConeTrainDataX.txt",
                      std::string coneTrainYFilePath = "./example/simConeTrainDataY.txt");
         ~OusterDriver();
@@ -87,11 +97,12 @@ class OusterDriver : public rclcpp::Node {
         int runDriver();
         void initialize();
         void initializePublishers();
+        void makeXYZLut();
         void handleLidar();
         void handleImu();
         void handleLidarScan();
         void publishRawPointcloud();
-        void publishImu();
+        void publishDetectedCones(double xPos, double yPos, double yaw);
 };
 
 #endif // OUSTER_DRIVER_H_INCLUDED
