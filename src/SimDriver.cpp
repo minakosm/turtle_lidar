@@ -10,7 +10,7 @@
 SimDriver::SimDriver(std::string filepath, 
                      std::string trainXFilePath, 
                      std::string trainYFilePath) : Node("lidar_sim_driver"), 
-                                                   pclProcessor(filepath),
+                                                   pclProcessor(2048*10, filepath),
                                                    coneClassifier(),
                                                    conePos() {
 
@@ -71,6 +71,8 @@ void SimDriver::subsPubsInit() {
 
 void SimDriver::pclCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
     // RCLCPP_INFO(this->get_logger(), "PointCloud2 Message received START");
+    auto a1 = std::chrono::steady_clock::now();
+
     double xPos, yPos, yaw;
     std::unique_lock<std::mutex> lock(odomMsgMutex);
     xPos = lastOdomMsg.pose.pose.position.x;
@@ -82,12 +84,12 @@ void SimDriver::pclCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) 
                                              yaw);
     lock.unlock();
 
-    RCLCPP_INFO(this->get_logger(), "PointCloud2 size = %u\nx = %.2f   y = %.2f   yaw = %.4f", msg->width*msg->height, xPos, yPos, yaw);
+    RCLCPP_INFO(this->get_logger(), "\nPointCloud2 size = %u\nx = %.2f   y = %.2f   yaw = %.4f", msg->width*msg->height, xPos, yPos, yaw);
     X->resize(msg->width*msg->height);
     Y->resize(msg->width*msg->height);
     Z->resize(msg->width*msg->height);
     intensities->resize(msg->width*msg->height);
-
+    pclProcessor.resizeCoordinates(msg->width*msg->height);
     // RCLCPP_INFO(this->get_logger(), "PointCloud2 Message conversion to XYZ started");
     uint8_t* ptr = msg->data.data();
     for(int i = 0; i < X->size(); i++) {
@@ -98,15 +100,31 @@ void SimDriver::pclCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) 
     }
     // RCLCPP_INFO(this->get_logger(), "PointCloud2 Message converted to XYZ");
 
-    if(pclProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos)) {
-        RCLCPP_INFO(this->get_logger(), "Found 0 cones");
-        return;
+    if(pclProcessorMutex.try_lock()) {
+        // RCLCPP_INFO(this->get_logger(), "PCL Processor started");
+        int processReturnFlag = pclProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos);
+        if(processReturnFlag == 0) {
+            RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
+            publishDetectedCones(xPos, yPos, yaw);
+        }
+        else if(processReturnFlag == -100) {
+            RCLCPP_INFO(this->get_logger(), "PCL Processor timed-out");
+        }
+        else if(processReturnFlag == -101) {
+            RCLCPP_INFO(this->get_logger(), "PCL Processor point limit reached");
+        }
+        else {
+            RCLCPP_INFO(this->get_logger(), "PCL Processor returned ERROR flag: %d", processReturnFlag);
+        }
+        // RCLCPP_INFO(this->get_logger(), "PCL Processor ended");
+        pclProcessorMutex.unlock();
     }
     else {
-        RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
-        publishDetectedCones(xPos, yPos, yaw);
+        RCLCPP_INFO(this->get_logger(), "Pipeline mutex is locked, ignoring current pointcloud");
     }
-    
+
+    auto a2 = std::chrono::steady_clock::now();
+    RCLCPP_INFO(this->get_logger(), "Total pclCallback time in us: %lu", std::chrono::duration_cast<std::chrono::microseconds>(a2 - a1).count());
     // RCLCPP_INFO(this->get_logger(), "PointCloud2 Message received END");
 }
 

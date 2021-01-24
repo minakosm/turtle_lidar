@@ -51,12 +51,10 @@ class OusterDriver : public rclcpp::Node {
         std::vector<uint64_t> times_buffer;
         std::vector<uint32_t> ranges_buffer;
         std::vector<uint16_t> intensities_buffer;
-        std::vector<uint32_t> encoder_buffer;
         
         std::vector<uint64_t> times_process_buffer;
         std::vector<uint32_t> ranges_process_buffer;
         std::vector<uint16_t> intensities_process_buffer;
-        std::vector<uint32_t> encoder_process_buffer;
         
         // Lookup tables (LUT) for finding XYZ coordinates faster using pixel range
         Eigen::Array<float, Eigen::Dynamic, 3> directionLut;
@@ -84,6 +82,8 @@ class OusterDriver : public rclcpp::Node {
 
         // std_msgs::msg::Header a;
 
+        std::mutex pclProcessorMutex;
+        int maxPointsProcessing, timeoutProcessing;
         PointcloudProcessing pointcloudProcessor;
         GNBC coneClassifier;
         

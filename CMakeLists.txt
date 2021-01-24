@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(turtle_lidar VERSION 0.95)
+project(turtle_lidar VERSION 0.97)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
@@ -11,7 +11,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS "-fopenmp")
 set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -fopenmp")
-set(CMAKE_CXX_FLAGS_RELEASE "-fopenmp")
+set(CMAKE_CXX_FLAGS_RELEASE "-fopenmp -O3")
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -76,13 +76,13 @@ add_library(SimDriver SHARED src/SimDriver.cpp)
 target_link_libraries(SimDriver PointcloudProcessing)
 ament_target_dependencies(SimDriver rclcpp std_msgs sensor_msgs nav_msgs ament_index_cpp turtle_common)
 
-# Test executable #1
-add_executable(testExample src/testExample.cpp)
-target_link_libraries(testExample PointcloudProcessing)
+# # Test executable #1
+# add_executable(testExample src/testExample.cpp)
+# target_link_libraries(testExample PointcloudProcessing)
 
-# Test executable #2
-add_executable(testExample2 src/testExample2.cpp)
-target_link_libraries(testExample2 PointcloudProcessing)
+# # Test executable #2
+# add_executable(testExample2 src/testExample2.cpp)
+# target_link_libraries(testExample2 PointcloudProcessing)
 
 # ROS2 Ouster Driver Executable
 add_executable(ouster_driver src/main_ouster.cpp)

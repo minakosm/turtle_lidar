@@ -23,7 +23,9 @@ class SimDriver : public rclcpp::Node {
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pclPublisher;
         rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odomSubscriber;
 
+        std::mutex pclProcessorMutex;
         PointcloudProcessing pclProcessor;
+        
         std::unique_ptr<Eigen::VectorXf> X, Y, Z;
         std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> intensities;
         Eigen::Matrix<float, Eigen::Dynamic, 2, Eigen::RowMajor> conePos;

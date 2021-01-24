@@ -21,8 +21,8 @@ class PointcloudProcessing {
         ClusterSettings clusterSettings;
         ClassifierSettings classifierSettings;
 
-        std::unique_ptr<Eigen::VectorXf> x,y,z,azim,r;
-        std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> intensity;
+        std::unique_ptr<Eigen::VectorXf> x, y, z, azim, r, xBuffer, yBuffer, zBuffer, azimBuffer, rBuffer;
+        std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> intensity, intensityBuffer, intensitiesFiltered;
         std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>> cart;
 
         Eigen::Matrix <uint8_t, Eigen::Dynamic, 2, Eigen::RowMajor> partitionMatrix;
@@ -36,7 +36,7 @@ class PointcloudProcessing {
         Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> clusterPositions;
         
         void polarInit();
-        bool removePoints(const Eigen::Array <bool, Eigen::Dynamic, 1> &logicalVector);
+        bool filterPoints(const Eigen::Array <bool, Eigen::Dynamic, 1> &logicalVector);
         Eigen::VectorXf getLine(const Eigen::VectorXf &properties);
         Eigen::VectorXf updateLine(float x, float y, const Eigen::VectorXf &properties);
         SegmentLines segmentGroundLinesFit(int segment);
@@ -49,21 +49,9 @@ class PointcloudProcessing {
         Eigen::Vector3f regressCircle(const Eigen::VectorXf &xC, const Eigen::VectorXf &yC);
     public:
         PointcloudProcessing(std::string pathToConfigFile = "./lidarConfig.ini");
-
         PointcloudProcessing(int pclSize, std::string pathToConfigFile = "./lidarConfig.ini");
 
-        PointcloudProcessing(Eigen::VectorXf *X, 
-                             Eigen::VectorXf *Y, 
-                             Eigen::VectorXf *Z, 
-                             Eigen::Matrix<uint16_t, Eigen::Dynamic,1> *intensities,
-                             std::string pathToConfigFile = "./lidarConfig.ini");
-
-        PointcloudProcessing(std::unique_ptr<Eigen::VectorXf> &X, 
-                             std::unique_ptr<Eigen::VectorXf> &Y, 
-                             std::unique_ptr<Eigen::VectorXf> &Z, 
-                             std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities,
-                             std::string pathToConfigFile = "./lidarConfig.ini");
-
+        void resizeCoordinates(int pclSize);
         void printPointcloudSize();
         void printSettings(); 
         
@@ -85,13 +73,15 @@ class PointcloudProcessing {
         bool filterGround();
         void nonGroundClustering();
         bool clusterClassifier(GNBC &nbc,
-                               Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> &conePos);
+                               Eigen::Matrix <float, Eigen::Dynamic, 2, 
+                               Eigen::RowMajor> &conePos);
         int pipeline(std::unique_ptr<Eigen::VectorXf> &X, 
-                                                                           std::unique_ptr<Eigen::VectorXf> &Y, 
-                                                                           std::unique_ptr<Eigen::VectorXf> &Z,
-                                                                           std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities, 
-                                                                           GNBC &nbc,
-                                                                           Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> &conePos);
+                     std::unique_ptr<Eigen::VectorXf> &Y, 
+                     std::unique_ptr<Eigen::VectorXf> &Z,
+                     std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> &intensities, 
+                     GNBC &nbc,
+                     Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> &conePos,
+                     int maxPointsProcessing = 10000, int timeoutProcessing = 90);
 };
 
 #endif // POINTCLOUD_PROCESSING_H_INCLUDED
