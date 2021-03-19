@@ -73,6 +73,8 @@ class OusterDriver : public rclcpp::Node {
         // Variables related to publishing detected cones' info
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr conesDetectedPublisher;
         sensor_msgs::msg::PointCloud2 conesDetectedMsg;
+        bool runPipeline;
+        bool invertXY;
         bool publishCones;
 
         // Variables related to publishing LiDAR's IMU (IMU Sensor Frame)

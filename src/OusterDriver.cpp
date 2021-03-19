@@ -108,6 +108,8 @@ void OusterDriver::readSettingsFromINI(std::string pathToIniFile) {
     lidarMode = (ouster::sensor::lidar_mode)pt.get<int>("Lidar.lidarMode");
     timestampMode = (ouster::sensor::timestamp_mode)pt.get<int>("Lidar.timestampMode");
     publishRaw = pt.get<bool>("Lidar.publishRawPointcloud");
+    invertXY = pt.get<bool>("Lidar.invertXYMode");
+    runPipeline = pt.get<bool>("Lidar.runPipeline");
     publishCones = pt.get<bool>("Lidar.publishConesDetectedPointcloud");
     imuMode = pt.get<bool>("Lidar.imuMode");
     lidar_origin_to_beam_origin = pt.get<float>("Lidar.lidar_origin_to_beam_origin");
@@ -326,40 +328,46 @@ void OusterDriver::handleLidarScan() {
     // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan start");
 
     // TODO change to a single for-loop
-    for(int i = 0; i < width; i++) {
-        for(int j = 0; j < height; j++) {
-            (*X)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * directionLut(i*height + j, 0) + offsetLut(i*height + j, 0);
-            (*Y)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * directionLut(i*height + j, 1) + offsetLut(i*height + j, 1);
-            (*Z)(i*height + j) = ranges_process_buffer[i*height + j] * 0.001 * directionLut(i*height + j, 2) + offsetLut(i*height + j, 2);
-            (*intensities)(i*height + j) = intensities_process_buffer[i*height + j];
-        }
+    for(int i = 0; i < width * height; i++) {
+        (*X)(i) = ranges_process_buffer[i] * 0.001 * directionLut(i, 0);
+        // + offsetLut(i, 0);
+        (*Y)(i) = ranges_process_buffer[i] * 0.001 * directionLut(i, 1); 
+        // + offsetLut(i, 1);
+        (*Z)(i) = ranges_process_buffer[i] * 0.001 * directionLut(i, 2);
+        // + offsetLut(i, 2);
+        (*intensities)(i) = intensities_process_buffer[i];
     }
 
     if(publishRaw)
         publishRawPointcloud();
     
-    if(pclProcessorMutex.try_lock()) {
-        // RCLCPP_INFO(this->get_logger(), "PCL Processor started");
-        int processReturnFlag = pointcloudProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos);
-        if(processReturnFlag == 0) {
-            RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
-            if(publishCones)
-                publishDetectedCones(0.0, 0.0, 0.0);
-        }
-        else if(processReturnFlag == -100) {
-            RCLCPP_INFO(this->get_logger(), "PCL Processor timed-out");
-        }
-        else if(processReturnFlag == -101) {
-            RCLCPP_INFO(this->get_logger(), "PCL Processor point limit reached");
+    if(runPipeline) {
+        if(pclProcessorMutex.try_lock()) {
+            // RCLCPP_INFO(this->get_logger(), "PCL Processor started");
+            if(invertXY)
+                (*X) = -(*X);
+                (*Y) = -(*Y);
+            int processReturnFlag = pointcloudProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos);
+            if(processReturnFlag == 0) {
+                RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
+                if(publishCones)
+                    publishDetectedCones(0.0, 0.0, 0.0);
+            }
+            else if(processReturnFlag == -100) {
+                RCLCPP_INFO(this->get_logger(), "PCL Processor timed-out");
+            }
+            else if(processReturnFlag == -101) {
+                RCLCPP_INFO(this->get_logger(), "PCL Processor point limit reached");
+            }
+            else {
+                RCLCPP_INFO(this->get_logger(), "PCL Processor returned ERROR flag: %d", processReturnFlag);
+            }
+            // RCLCPP_INFO(this->get_logger(), "PCL Processor ended");
+            pclProcessorMutex.unlock();
         }
         else {
-            RCLCPP_INFO(this->get_logger(), "PCL Processor returned ERROR flag: %d", processReturnFlag);
+            RCLCPP_INFO(this->get_logger(), "Pipeline mutex is locked, ignoring current pointcloud");
         }
-        // RCLCPP_INFO(this->get_logger(), "PCL Processor ended");
-        pclProcessorMutex.unlock();
-    }
-    else {
-        RCLCPP_INFO(this->get_logger(), "Pipeline mutex is locked, ignoring current pointcloud");
     }
     // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan end");
 }
