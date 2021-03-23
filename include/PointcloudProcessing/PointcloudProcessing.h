@@ -55,6 +55,7 @@ class PointcloudProcessing {
         void printPointcloudSize();
         void printSettings(); 
         
+        // Getters
         Eigen::VectorXf getX();
         Eigen::VectorXf getY();
         Eigen::VectorXf getZ();
@@ -63,6 +64,10 @@ class PointcloudProcessing {
         Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> getIntensities();
         Eigen::VectorXi getClusters();
         Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> getCart();
+        BaseFilter getBaseFilterSettings();
+        GroundFilter getGroundFilterSettings();
+        ClusterSettings getClusterSettings();
+        ClassifierSettings getClassifierSettings();
 
         bool filter();
         void calculatePartitionMatrix();

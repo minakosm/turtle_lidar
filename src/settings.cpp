@@ -74,8 +74,10 @@ ClassifierSettings::ClassifierSettings(std::string filepath) {
     ignoreClusterPointsHigh = pt.get<int>("Classifier.ignoreClusterPointsHigh");
     regressCircleMaxIter = pt.get<int>("Classifier.regressCircleMaxIter");
     
-    reconstructCluster = pt.get<bool>("Classifier.reconstructCluster");
-    useOriginalClusterCircle = pt.get<bool>("Classifier.useOriginalClusterCircle");
+    useCircleRegression = pt.get<bool>("Classifier.useCircleRegression");
+    useOriginalClusterForPos = pt.get<bool>("Classifier.useOriginalClusterForPos");
+    useAverageHeight = pt.get<bool>("Classifier.useAverageHeight");
+    usepRR = pt.get<bool>("Classifier.usepRR");
 
     r = pt.get<float>("Classifier.r");
     zMin = pt.get<float>("Classifier.zMin");
@@ -112,7 +114,8 @@ std::ostream &operator<<(std::ostream &os, ClusterSettings const &m) {
 
 std::ostream &operator<<(std::ostream &os, ClassifierSettings const &m) {
     return os << "ignoreClusterPointsLow = " << m.ignoreClusterPointsLow << "\nignoreClusterPointsHigh = " << m.ignoreClusterPointsHigh 
-              << "\nregressCircleMaxIter = " << m.regressCircleMaxIter << "\nreconstructCluster = " << m.reconstructCluster 
-              << "\nuseOriginalClusterCircle = " << m.useOriginalClusterCircle << "\nr = " << m.r << "\nzMin = " << m.zMin << "\nzMax = " << m.zMax
+              << "\nregressCircleMaxIter = " << m.regressCircleMaxIter << "\nuseCircleRegression = " << m.useCircleRegression 
+              << "\nuseOriginalClusterForPos = " << m.useOriginalClusterForPos << "\nuseAverageHeight = " << m.useAverageHeight << "\nusepRR = " << m.usepRR
+              << "\nr = " << m.r << "\nzMin = " << m.zMin << "\nzMax = " << m.zMax
               << "\nregressCircleDiffThreshold = " << m.regressCircleDiffThreshold << std::endl << std::endl;
 }

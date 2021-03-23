@@ -28,7 +28,7 @@ struct ClusterSettings {
 
 struct ClassifierSettings {
     int ignoreClusterPointsLow, ignoreClusterPointsHigh, regressCircleMaxIter;
-    bool reconstructCluster, useOriginalClusterCircle;
+    bool useCircleRegression, useAverageHeight, usepRR, useOriginalClusterForPos;
     float r, zMin, zMax, regressCircleDiffThreshold;
     
     ClassifierSettings(std::string filepath = "./lidarConfig.ini");

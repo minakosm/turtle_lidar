@@ -90,12 +90,28 @@ Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> PointcloudProcessing::getIntensities(
     return (*intensity);
 }
 
+Eigen::VectorXi PointcloudProcessing::getClusters() {
+    return clusters;
+}
+
 Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> PointcloudProcessing::getCart() {
     return (*cart);
 }
 
-Eigen::VectorXi PointcloudProcessing::getClusters() {
-    return clusters;
+BaseFilter PointcloudProcessing::getBaseFilterSettings(){
+    return baseFilter;
+}
+
+GroundFilter PointcloudProcessing::getGroundFilterSettings(){
+    return groundFilter;
+}
+
+ClusterSettings PointcloudProcessing::getClusterSettings(){
+    return clusterSettings;
+}
+
+ClassifierSettings PointcloudProcessing::getClassifierSettings() {
+    return classifierSettings;
 }
 
 void PointcloudProcessing::polarInit() {
@@ -429,7 +445,7 @@ void PointcloudProcessing::clustersVectorFun() {
 bool PointcloudProcessing::clusterClassifier(GNBC &nbc, Eigen::Matrix <float, Eigen::Dynamic, 2, Eigen::RowMajor> &conePos) {
     if(numberOfClusters == 0)
         return false;
-    Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero(numberOfClusters, 3);
+    Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero(numberOfClusters, nbc.getNumberOfFeatures());
     Eigen::Matrix <float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> pos = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>::Zero(numberOfClusters, 2);
     Eigen::Array <bool, Eigen::Dynamic, 1> coneClustersLabels = Eigen::Matrix<bool, Eigen::Dynamic, 1>::Constant(numberOfClusters, false).array();
     Eigen::Array <bool, Eigen::Dynamic, 1> ignoreClusters = Eigen::Matrix<bool, Eigen::Dynamic, 1>::Constant(numberOfClusters, false).array();
@@ -447,36 +463,37 @@ bool PointcloudProcessing::clusterClassifier(GNBC &nbc, Eigen::Matrix <float, Ei
             }
             xCluster = sliceVector<float>(*x, mask);
             yCluster = sliceVector<float>(*y, mask);
-            float meanZ = zCluster.mean();
-            if(classifierSettings.reconstructCluster == true) {
-                float meanX = xCluster.mean();
-                float meanY = yCluster.mean();
-                mask = (mask.cast<int>() + ( ((((x->array()-meanX)*(x->array()-meanX) + (y->array()-meanY)*(y->array()-meanY)) < classifierSettings.r*classifierSettings.r).cast<int>()) * ( (((z->array()-meanZ) > classifierSettings.zMin).cast<int>()) * (((z->array()-meanZ) < classifierSettings.zMax).cast<int>()) ).cast<int>())).cast<bool>();
-                zCluster2 = sliceVector<float>(*z, mask);
-                if(zCluster2.size() > classifierSettings.ignoreClusterPointsHigh || zCluster2.size() < classifierSettings.ignoreClusterPointsLow) {
-                    ignoreClusters(i) = true;
-                    continue;
-                }
-                xCluster2 = sliceVector<float>(*x, mask);
-                yCluster2 = sliceVector<float>(*y, mask);
+            float meanX = xCluster.mean(), meanY = yCluster.mean(), meanZ = zCluster.mean();
+            mask = (mask.cast<int>() + ( ((((x->array()-meanX)*(x->array()-meanX) + (y->array()-meanY)*(y->array()-meanY)) < classifierSettings.r*classifierSettings.r).cast<int>()) * ( (((z->array()-meanZ) > classifierSettings.zMin).cast<int>()) * (((z->array()-meanZ) < classifierSettings.zMax).cast<int>()) ).cast<int>())).cast<bool>();
+            zCluster2 = sliceVector<float>(*z, mask);
+            if(zCluster2.size() > classifierSettings.ignoreClusterPointsHigh || zCluster2.size() < classifierSettings.ignoreClusterPointsLow) {
+                ignoreClusters(i) = true;
+                continue;
             }
-            else if(zCluster.size() < classifierSettings.ignoreClusterPointsLow) {
-                    ignoreClusters(i) = true;
-                    continue;
-            }
+            xCluster2 = sliceVector<float>(*x, mask);
+            yCluster2 = sliceVector<float>(*y, mask);
             // END OF Cluster check and reconstruct section
             
-            
-            Eigen::Vector3f circle;
-            if((classifierSettings.reconstructCluster == true && classifierSettings.useOriginalClusterCircle == true) || (classifierSettings.reconstructCluster == false))
-                circle = regressCircle(xCluster, yCluster);
+            // START OF Geometrical Characteristics Extraction
+            int count = 0;
+            if(classifierSettings.useOriginalClusterForPos)
+                pos.row(i) << meanX, meanY;
             else
-                circle = regressCircle(xCluster2, yCluster2);
-            if(classifierSettings.reconstructCluster == true)
-                X.row(i) << circle(2), clusterDistFromGround(circle(0), circle(1), zCluster2.mean()), zCluster2.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster2.mean()*zCluster2.mean());
-            else
-                X.row(i) << circle(2), clusterDistFromGround(circle(0), circle(1), zCluster.mean()), zCluster.size()*(circle(0)*circle(0) + circle(1)*circle(1) + zCluster.mean()*zCluster.mean());
-            pos.row(i) << circle(0), circle(1);
+                pos.row(i) << xCluster2.mean(), yCluster2.mean();
+            if(classifierSettings.useCircleRegression) {
+                Eigen::Vector3f circle;
+                if(classifierSettings.useOriginalClusterForPos)
+                    circle = regressCircle(xCluster, yCluster);
+                else
+                    circle = regressCircle(xCluster2, yCluster2);
+                X(i, count++) = circle(2);
+                pos.row(i) << circle(0), circle(1);
+            }
+            if(classifierSettings.useAverageHeight)
+                X(i, count++) = clusterDistFromGround(pos(i,0), pos(i,1), zCluster2.mean());
+            if(classifierSettings.usepRR)
+                X(i, count) = zCluster2.size()*(pos(i,0)*pos(i,0) + pos(i,1)*pos(i,1) + zCluster2.mean()*zCluster2.mean());
+            // END OF Geometrical Characteristics Extraction
         }
     Eigen::VectorXi labels = nbc.labelMatrix(nbc.predictMatrix(X));
     //for(int i = 0; i < X.rows(); i++)
