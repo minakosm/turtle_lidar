@@ -355,6 +355,9 @@ void OusterDriver::handleLidarScan() {
         // + offsetLut(i, 2);
         (*intensities)(i) = intensities_process_buffer[i];
     }
+    if(invertXY)
+    	(*X) = -(*X);
+        (*Y) = -(*Y);
 
     if(publishRaw)
         publishRawPointcloud();
@@ -362,9 +365,6 @@ void OusterDriver::handleLidarScan() {
     if(runPipeline) {
         if(pclProcessorMutex.try_lock()) {
             // RCLCPP_INFO(this->get_logger(), "PCL Processor started");
-            if(invertXY)
-                (*X) = -(*X);
-                (*Y) = -(*Y);
             int processReturnFlag = pointcloudProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos);
             if(processReturnFlag == 0) {
                 RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
