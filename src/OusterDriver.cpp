@@ -304,7 +304,7 @@ void OusterDriver::makeXYZLut() {
 
 void OusterDriver::handleLidar() {
     const uint8_t* col_buf_check = ouster::sensor::impl::nth_col<32>(0, lidar_buf);
-    if(ouster::sensor::impl::col_frame_id(col_buf_check) < 20)
+    if(ouster::sensor::impl::col_frame_id(col_buf_check) < 20 || (counter == 0 && ouster::sensor::impl::col_measurement_id(col_buf_check) != 0))
         return;
     // RCLCPP_INFO(this->get_logger(), "Handle Lidar Start with counter = %u", counter);
     // static int checkEncoderValue = 0;
@@ -313,7 +313,7 @@ void OusterDriver::handleLidar() {
     //     checkEncoderValue++;
     // }
 
-	//#pragma omp parallel for ordered num_threads(2)
+	// #pragma omp parallel for ordered num_threads(2)
     for(int i = 0; i < ouster::sensor::impl::cols_per_packet; i++) {
 	    const uint8_t* col_buf = ouster::sensor::impl::nth_col<32>(i, lidar_buf);
         // if(i == 0)
