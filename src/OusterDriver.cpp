@@ -365,7 +365,7 @@ void OusterDriver::handleLidarScan() {
     if(runPipeline) {
         if(pclProcessorMutex.try_lock()) {
             // RCLCPP_INFO(this->get_logger(), "PCL Processor started");
-            int processReturnFlag = pointcloudProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos);
+            int processReturnFlag = pointcloudProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos, maxPointsProcessing, timeoutProcessing);
             if(processReturnFlag == 0) {
                 RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
                 if(publishCones)
