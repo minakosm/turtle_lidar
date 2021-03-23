@@ -26,11 +26,12 @@ class testPTP : public rclcpp::Node {
         uint8_t* lidar_buf;
         std::shared_ptr<ouster::sensor::client> cli;
 
+	uint64_t timestampCaptured;
         std_msgs::msg::Header headerMsg;
 
         int runDriver() {
             boost::property_tree::ptree pt;
-	        boost::property_tree::ini_parser::read_ini(configFilePath, pt);
+	    boost::property_tree::ini_parser::read_ini(configFilePath, pt);
             
             host_ip = pt.get<std::string>("Lidar.hostIP");
             lidar_ip = pt.get<std::string>("Lidar.lidarIP");
@@ -55,6 +56,7 @@ class testPTP : public rclcpp::Node {
                 else if (st & ouster::sensor::LIDAR_DATA) {
                     // auto k1 = std::chrono::high_resolution_clock::now();
                     headerMsg.stamp = rclcpp::Node::now();
+		    // timestampCaptured = std::chrono::time_point_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
                     if (ouster::sensor::read_lidar_packet(*cli, lidar_buf, ouster::sensor::lidar_packet_bytes_OS1_32)) {
                         handleLidar();
                     }
@@ -70,7 +72,8 @@ class testPTP : public rclcpp::Node {
         void handleLidar() {
             const uint8_t* col_buf_check = ouster::sensor::impl::nth_col<32>(0, lidar_buf);
             uint64_t lidarTimestamp = ouster::sensor::impl::col_timestamp(col_buf_check);
-            RCLCPP_INFO(this->get_logger(), "\nLiDAR Sensor Timestamp = %llu\nROS2 NodeNow Timestamp = %llu", lidarTimestamp, ((uint64_t)headerMsg.stamp.sec*1e+9 + (uint64_t)headerMsg.stamp.nanosec));
+	    timestampCaptured = (uint64_t)(headerMsg.stamp.sec)*1e+9 + (uint64_t)(headerMsg.stamp.nanosec);
+            RCLCPP_INFO(this->get_logger(), "\nLiDAR Sensor Timestamp = %llu\nROS2 NodeNow Timestamp = %llu\nDifference = %llu", lidarTimestamp, timestampCaptured, (lidarTimestamp > timestampCaptured) ? (lidarTimestamp-timestampCaptured) : (timestampCaptured - lidarTimestamp));
         }
         
     public:
