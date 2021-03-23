@@ -94,9 +94,15 @@ add_executable(sim_driver src/main_sim.cpp)
 target_link_libraries(sim_driver SimDriver)
 ament_target_dependencies(sim_driver rclcpp)
 
+# ROS2 Test PTP Sync
+add_executable(testPTP src/testPTP.cpp)
+target_link_libraries(testPTP Eigen3::Eigen ouster_client)
+ament_target_dependencies(testPTP rclcpp ament_index_cpp)
+
 install(TARGETS
     ouster_driver
     sim_driver
+    testPTP
     DESTINATION lib/${PROJECT_NAME}
 )
 
