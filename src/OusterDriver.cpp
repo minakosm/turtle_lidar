@@ -40,6 +40,24 @@ OusterDriver::OusterDriver(std::string configFilePath,
     Eigen::Matrix<int, Eigen::Dynamic, 1> coneTrainDataY;
     read_matrix<float>(coneTrainXFilePath, coneTrainDataX);
     read_vector<int>(coneTrainYFilePath, coneTrainDataY);
+    Eigen::MatrixXf circleRadius = coneTrainDataX.col(0);
+    Eigen::MatrixXf averageHeight = coneTrainDataX.col(1);
+    Eigen::MatrixXf pRR = coneTrainDataX.col(2);
+    int count = 0;
+    if(pointcloudProcessor.getClassifierSettings().useCircleRegression) {
+        coneTrainDataX.col(count) = circleRadius;
+        count++;
+    }
+    if(pointcloudProcessor.getClassifierSettings().useAverageHeight) {
+        coneTrainDataX.col(count) = averageHeight;
+        count++;
+    }
+    if(pointcloudProcessor.getClassifierSettings().usepRR) {
+        coneTrainDataX.col(count) = pRR;
+        count++;
+    }
+    assert(count != 0);
+    coneTrainDataX.conservativeResize(Eigen::NoChange, count);
     coneClassifier.train(coneTrainDataX, coneTrainDataY);
 
     // Set object-related parameters to their respective value based on lidar-mode

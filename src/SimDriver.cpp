@@ -8,14 +8,14 @@
 #include "utils.h"
 
 SimDriver::SimDriver(std::string filepath, 
-                     std::string trainXFilePath, 
-                     std::string trainYFilePath) : Node("lidar_sim_driver"), 
+                     std::string coneTrainXFilePath, 
+                     std::string coneTrainYFilePath) : Node("lidar_sim_driver"), 
                                                    pclProcessor(2048*10, filepath),
                                                    coneClassifier(),
                                                    conePos() {
 
     // Print used configuration and train files
-    RCLCPP_INFO(this->get_logger(), "Simulation LiDAR Node is using the following paths:\nConfiguration INI file: %s\nCone classifier TrainX: %s\nCone classifier TrainY: %s\n\n", filepath.c_str(), trainXFilePath.c_str(), trainYFilePath.c_str());
+    RCLCPP_INFO(this->get_logger(), "Simulation LiDAR Node is using the following paths:\nConfiguration INI file: %s\nCone classifier TrainX: %s\nCone classifier TrainY: %s\n\n", filepath.c_str(), coneTrainXFilePath.c_str(), coneTrainYFilePath.c_str());
 
     // Initialize unique_ptr(s)
     X = std::make_unique<Eigen::VectorXf>();
@@ -26,8 +26,25 @@ SimDriver::SimDriver(std::string filepath,
     // Cone classifier training
     Eigen::MatrixXf coneTrainDataX;
     Eigen::Matrix<int, Eigen::Dynamic, 1> coneTrainDataY;
-    read_matrix<float>(trainXFilePath, coneTrainDataX);
-    read_vector<int>(trainYFilePath, coneTrainDataY);
+    read_matrix<float>(coneTrainXFilePath, coneTrainDataX);
+    read_vector<int>(coneTrainYFilePath, coneTrainDataY);
+    Eigen::MatrixXf circleRadius = coneTrainDataX.col(0);
+    Eigen::MatrixXf averageHeight = coneTrainDataX.col(1);
+    Eigen::MatrixXf pRR = coneTrainDataX.col(2);
+    int count = 0;
+    if(pclProcessor.getClassifierSettings().useCircleRegression) {
+        coneTrainDataX.col(count) = circleRadius;
+        count++;
+    }
+    if(pclProcessor.getClassifierSettings().useAverageHeight) {
+        coneTrainDataX.col(count) = averageHeight;
+        count++;
+    }
+    if(pclProcessor.getClassifierSettings().usepRR) {
+        coneTrainDataX.col(count) = pRR;
+        count++;
+    }
+    coneTrainDataX.conservativeResize(Eigen::NoChange, count);
     coneClassifier.train(coneTrainDataX, coneTrainDataY);
 
     subsPubsInit();
