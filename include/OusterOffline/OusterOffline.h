@@ -2,7 +2,6 @@
 #define OUSTER_OFFLINE_H
 
 #include <eigen3/Eigen/Dense>
-#include <json/json.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <vector>

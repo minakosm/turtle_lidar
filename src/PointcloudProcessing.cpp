@@ -390,18 +390,18 @@ void PointcloudProcessing::condensedDistances() {
     int N = cart->rows();
 	condensedClusterDistances.resize((N * (N-1)) / 2);
 	#pragma omp parallel for ordered shared(cart,condensedClusterDistances) num_threads(NUM_OF_THREADS)
-        for(int i = 0; i < (N-1); i++)
-            (condensedClusterDistances.segment(i*(N-1) - (i*(i-1))/2, N-1-i)).noalias() = (cart->bottomRows(N-i-1).rowwise() - cart->row(i)).array().square().rowwise().sum().matrix().cast<double>();
+            for(int i = 0; i < (N-1); i++)
+                (condensedClusterDistances.segment(i*(N-1) - (i*(i-1))/2, N-1-i)).noalias() = (cart->bottomRows(N-i-1).rowwise() - cart->row(i)).array().square().rowwise().sum().matrix().cast<double>();
 }
 
 void PointcloudProcessing::hierarchicalClustering() {
     int N = cart->rows();
     int* merge = new int[2*(N-1)];
-	double* height = new double[N-1];
-	int* labels = new int[N];
+    double* height = new double[N-1];
+    int* labels = new int[N];
     condensedDistances();
-	hclust_fast(N, condensedClusterDistances.data(), 0, merge, height);
-	cutree_cdist(N, merge, height, (double)clusterSettings.hierClusterDist, labels);
+    hclust_fast(N, condensedClusterDistances.data(), 0, merge, height);
+    cutree_cdist(N, merge, height, (double)clusterSettings.hierClusterDist, labels);
     clusters = Eigen::Map<Eigen::VectorXi>(labels, N);
     delete[] merge;
     delete[] height;
@@ -570,11 +570,13 @@ int PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X,
         return -1;
     // std::cout << "Pointcloud size before base filter = " << xBuffer->size() << std::endl;
     auto a2 = std::chrono::steady_clock::now();
+    // std::cout << "Swap time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Swapping completed\n";
     polarInit();
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "Polar init time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Polar coordinates calculated completed\n";
@@ -582,38 +584,45 @@ int PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X,
         return -2;
     // std::cout << "Pointcloud size after base filter = " << x->size() << std::endl;
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "Base filter time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Main filter applied\n";
     calculatePartitionMatrix();
     // std::cout << "minAzim = " << minAzim << "\nmaxAzim = " << maxAzim << std::endl;
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "calculatePartitionMatrix time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Partition Matrix calculated\n";
     calculatePrototypePointsMatrix();
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "calculatePrototypePointsMatrix time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Prototype Matrix calculated\n";
     checkPrototypePointsMatrix();
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "checkPrototypePointsMatrix time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Prototype Matrix checked\n";
     groundLinesFit();
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "groundLinesFit time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Ground lines fitted\n";
     groundClassifier();
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "groundClassifier time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Ground points found\n";
     if(!filterGround())
         return -3;
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "filterGround time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Pointcloud size after ground filter = " << cart->rows() << std::endl;
@@ -622,6 +631,7 @@ int PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X,
     // std::cout << "Ground points filtered\n";
     nonGroundClustering();
     a2 = std::chrono::steady_clock::now();
+    // std::cout << "nonGroundClustering time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Non-Ground points clustered\n";

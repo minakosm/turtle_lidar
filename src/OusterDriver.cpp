@@ -201,7 +201,7 @@ void OusterDriver::initializePublishers() {
     if(publishRaw) {
         rawPointcloudPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/rawPointcloud", 10);
 
-        rawPointcloudMsg.header.frame_id = "ouster_lidar_frame";
+        rawPointcloudMsg.header.frame_id = "os1";
 
         rawPointcloudMsg.width = width;
         rawPointcloudMsg.height = height;
@@ -242,7 +242,7 @@ void OusterDriver::initializePublishers() {
     if(publishCones) {
         conesDetectedPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/conesDetected", 10);
 
-        conesDetectedMsg.header.frame_id = "ouster_lidar_frame";
+        conesDetectedMsg.header.frame_id = "os1";
 
         conesDetectedMsg.is_bigendian = false;
         conesDetectedMsg.is_dense = true;
@@ -268,7 +268,7 @@ void OusterDriver::initializePublishers() {
     if(imuMode) {
         imuPublisher = this->create_publisher<turtle_interfaces::msg::OusterImu>("/ouster/imu", 10);
 
-        imuMsg.header.frame_id = "ouster_imu_frame";
+        imuMsg.header.frame_id = "os1";
     }
 }
 

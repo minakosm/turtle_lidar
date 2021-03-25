@@ -11,7 +11,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS "-fopenmp")
 set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -fopenmp")
-set(CMAKE_CXX_FLAGS_RELEASE "-fopenmp -O3")
+set(CMAKE_CXX_FLAGS_RELEASE "-fopenmp -O3 -ffast-math")
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)

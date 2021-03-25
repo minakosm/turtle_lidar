@@ -53,7 +53,7 @@ OusterOffline::OusterOffline(std::string filepath,
 }
 
 void OusterOffline::subsPubsInit() {
-    conesDetectedMsg.header.frame_id = "ouster_lidar_frame";
+    conesDetectedMsg.header.frame_id = "os1";
     conesDetectedMsg.is_bigendian = false;
     conesDetectedMsg.is_dense = true;
     conesDetectedMsg.point_step = 12;
@@ -74,7 +74,7 @@ void OusterOffline::subsPubsInit() {
     conesDetectedMsg.fields[2].datatype = 7;
     conesDetectedMsg.fields[2].count = 1;
 
-    pclAfterGroundFilterMsg.header.frame_id = "ouster_lidar_frame";
+    pclAfterGroundFilterMsg.header.frame_id = "os1";
     pclAfterGroundFilterMsg.is_bigendian = false;
     pclAfterGroundFilterMsg.is_dense = true;
     pclAfterGroundFilterMsg.point_step = 12;
