@@ -118,6 +118,8 @@ install(
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/lidarConfig.ini 
               ${CMAKE_CURRENT_SOURCE_DIR}/example/simConeTrainDataX.txt 
               ${CMAKE_CURRENT_SOURCE_DIR}/example/simConeTrainDataY.txt
+			  ${CMAKE_CURRENT_SOURCE_DIR}/example/ousterConeTrainDataY.txt
+			  ${CMAKE_CURRENT_SOURCE_DIR}/example/ousterConeTrainDataY.txt
     DESTINATION share/${PROJECT_NAME}
 )
 
