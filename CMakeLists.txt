@@ -31,6 +31,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/include/PointcloudProcessing
                     ${CMAKE_CURRENT_SOURCE_DIR}/include/OusterDriver
                     ${CMAKE_CURRENT_SOURCE_DIR}/include/SimDriver
+                    ${CMAKE_CURRENT_SOURCE_DIR}/include/OusterOffline
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/ouster_client/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/hclust-cpp
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/dbscan
@@ -76,6 +77,11 @@ add_library(SimDriver SHARED src/SimDriver.cpp)
 target_link_libraries(SimDriver PointcloudProcessing)
 ament_target_dependencies(SimDriver rclcpp std_msgs sensor_msgs nav_msgs ament_index_cpp turtle_common)
 
+# Ouster Offline (for rosbags) library section
+add_library(OusterOffline SHARED src/OusterOffline.cpp)
+target_link_libraries(OusterOffline PointcloudProcessing)
+ament_target_dependencies(OusterOffline rclcpp std_msgs sensor_msgs ament_index_cpp)
+
 # # Test executable #1
 # add_executable(testExample src/testExample.cpp)
 # target_link_libraries(testExample PointcloudProcessing)
@@ -94,6 +100,11 @@ add_executable(sim_driver src/main_sim.cpp)
 target_link_libraries(sim_driver SimDriver)
 ament_target_dependencies(sim_driver rclcpp)
 
+# ROS2 Ouster Offline Executable (for running Pointcloud Processing on rosbags)
+add_executable(ouster_offline src/main_ouster_offline.cpp)
+target_link_libraries(ouster_offline OusterOffline)
+ament_target_dependencies(ouster_offline rclcpp)
+
 # ROS2 Test PTP Sync
 add_executable(testPTP src/testPTP.cpp)
 target_link_libraries(testPTP Eigen3::Eigen ouster_client)
@@ -102,12 +113,13 @@ ament_target_dependencies(testPTP rclcpp ament_index_cpp)
 install(TARGETS
     ouster_driver
     sim_driver
+    ouster_offline
     testPTP
     DESTINATION lib/${PROJECT_NAME}
 )
 
 install(
-    TARGETS SimDriver OusterDriver PointcloudProcessing ouster_client DBSCAN GNBC LidarSettings FastCluster
+    TARGETS SimDriver OusterDriver OusterOffline PointcloudProcessing ouster_client DBSCAN GNBC LidarSettings FastCluster
     EXPORT export_turtle_lidar_libraries
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib

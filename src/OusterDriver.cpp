@@ -404,7 +404,7 @@ void OusterDriver::publishDetectedCones(double xPos, double yPos, double yaw) {
         *((float*)(ptr + i*conesDetectedMsg.point_step)) = xCones(i);
         *((float*)(ptr + i*conesDetectedMsg.point_step + 4)) = yCones(i);
         *((float*)(ptr + i*conesDetectedMsg.point_step + 8)) = 0.0;
-        RCLCPP_INFO(this->get_logger(), "xCone = %f   yCone = %f", xCones(i), yCones(i));
+        // RCLCPP_INFO(this->get_logger(), "xCone = %f   yCone = %f", xCones(i), yCones(i));
     }
     conesDetectedPublisher->publish(conesDetectedMsg);
 }
