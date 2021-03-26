@@ -98,6 +98,10 @@ Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> PointcloudProcessing::g
     return (*cart);
 }
 
+int PointcloudProcessing::getNonGroundPoints() {
+    return cart->rows();
+}
+
 BaseFilter PointcloudProcessing::getBaseFilterSettings(){
     return baseFilter;
 }

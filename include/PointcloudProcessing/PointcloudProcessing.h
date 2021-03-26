@@ -64,6 +64,7 @@ class PointcloudProcessing {
         Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> getIntensities();
         Eigen::VectorXi getClusters();
         Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> getCart();
+        int getNonGroundPoints();
         BaseFilter getBaseFilterSettings();
         GroundFilter getGroundFilterSettings();
         ClusterSettings getClusterSettings();

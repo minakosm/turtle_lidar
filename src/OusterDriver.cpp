@@ -367,15 +367,18 @@ void OusterDriver::handleLidarScan() {
             // RCLCPP_INFO(this->get_logger(), "PCL Processor started");
             int processReturnFlag = pointcloudProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos, maxPointsProcessing, timeoutProcessing);
             if(processReturnFlag == 0) {
+                RCLCPP_INFO(this->get_logger(), "Filtered ground PCL size = %d\n", pointcloudProcessor.getNonGroundPoints());
                 RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
                 if(publishCones)
                     publishDetectedCones(0.0, 0.0, 0.0);
             }
             else if(processReturnFlag == -100) {
                 RCLCPP_INFO(this->get_logger(), "PCL Processor timed-out");
+                RCLCPP_INFO(this->get_logger(), "Filtered ground PCL size = %d\n", pointcloudProcessor.getNonGroundPoints());
             }
             else if(processReturnFlag == -101) {
                 RCLCPP_INFO(this->get_logger(), "PCL Processor point limit reached");
+                RCLCPP_INFO(this->get_logger(), "Filtered ground PCL size = %d\n", pointcloudProcessor.getNonGroundPoints());
             }
             else {
                 RCLCPP_INFO(this->get_logger(), "PCL Processor returned ERROR flag: %d", processReturnFlag);
@@ -384,7 +387,7 @@ void OusterDriver::handleLidarScan() {
             pclProcessorMutex.unlock();
         }
         else {
-            RCLCPP_INFO(this->get_logger(), "Pipeline mutex is locked, ignoring current pointcloud");
+            RCLCPP_INFO(this->get_logger(), "Pipeline mutex is locked, ignoring current pointcloud\n");
         }
     }
     // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan end");
