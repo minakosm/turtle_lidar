@@ -11,7 +11,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS "-fopenmp")
 set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -fopenmp")
-set(CMAKE_CXX_FLAGS_RELEASE "-fopenmp -O3 -ffast-math")
+set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -fopenmp")
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -35,7 +35,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/ouster_client/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/hclust-cpp
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/dbscan
-                    ${CMAKE_CURRENT_SOURCE_DIR}/modules/gaussian-naive-bayes-classifier)
+                    ${CMAKE_CURRENT_SOURCE_DIR}/modules/hpdbscan/include
+                    ${CMAKE_CURRENT_SOURCE_DIR}/modules/gaussian-naive-bayes-classifier
+                    "${HDF5_INCLUDE_DIRS}")
 
 # Ouster client library section
 add_library(ouster_client SHARED modules/ouster_client/src/client.cpp 
@@ -51,6 +53,13 @@ add_library(FastCluster SHARED modules/hclust-cpp/fastcluster.cpp)
 # DBSCAN (DBSCAN Clustering library for C++)
 add_library(DBSCAN SHARED modules/dbscan/dbscan.cpp)
 
+# HPDBSCAN (Highly Parallel DBSCAN Clustering library for C++)
+add_library(HPDBSCAN SHARED modules/hpdbscan/src/hpdbscan.cpp)
+find_package(OpenMP 4.0 REQUIRED)
+target_link_libraries(HPDBSCAN PRIVATE ${OpenMP_CXX_FLAGS})
+find_package(HDF5 1.8.10 REQUIRED)
+target_link_libraries(HPDBSCAN PRIVATE "${HDF5_LIBRARIES}")
+
 # Gaussian Naive Bayes Classifier library for C++
 add_library(GNBC SHARED modules/gaussian-naive-bayes-classifier/bayes.cpp)
 
@@ -61,6 +70,8 @@ add_library(LidarSettings SHARED src/settings.cpp)
 add_library(PointcloudProcessing SHARED src/PointcloudProcessing.cpp)
 target_link_libraries(PointcloudProcessing Eigen3::Eigen)
 target_link_libraries(PointcloudProcessing DBSCAN)
+target_link_libraries(PointcloudProcessing HPDBSCAN)
+target_link_libraries(PointcloudProcessing "${HDF5_LIBRARIES}")
 target_link_libraries(PointcloudProcessing FastCluster)
 target_link_libraries(PointcloudProcessing LidarSettings)
 target_link_libraries(PointcloudProcessing GNBC)
@@ -119,7 +130,7 @@ install(TARGETS
 )
 
 install(
-    TARGETS SimDriver OusterDriver OusterOffline PointcloudProcessing ouster_client DBSCAN GNBC LidarSettings FastCluster
+    TARGETS SimDriver OusterDriver OusterOffline PointcloudProcessing ouster_client HPDBSCAN DBSCAN GNBC LidarSettings FastCluster
     EXPORT export_turtle_lidar_libraries
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
@@ -130,9 +141,9 @@ install(
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/lidarConfig.ini 
               ${CMAKE_CURRENT_SOURCE_DIR}/example/simConeTrainDataX.txt 
               ${CMAKE_CURRENT_SOURCE_DIR}/example/simConeTrainDataY.txt
-	      ${CMAKE_CURRENT_SOURCE_DIR}/example/ousterConeTrainDataX.txt
-	      ${CMAKE_CURRENT_SOURCE_DIR}/example/ousterConeTrainDataY.txt
-    DESTINATION share/${PROJECT_NAME}
+	          ${CMAKE_CURRENT_SOURCE_DIR}/example/ousterConeTrainDataX.txt
+	          ${CMAKE_CURRENT_SOURCE_DIR}/example/ousterConeTrainDataY.txt
+        DESTINATION share/${PROJECT_NAME}
 )
 
 ament_package()

@@ -3,6 +3,7 @@
 #include "lines.h"
 #include "fastcluster.h"
 #include "dbscan.h"
+#include "hpdbscan.h"
 #include "utils.h"
 
 #include <eigen3/Eigen/Dense>
@@ -24,8 +25,8 @@ PointcloudProcessing::PointcloudProcessing(std::string pathToConfigFile) : baseF
     r = std::make_unique<Eigen::VectorXf>();
     azimBuffer = std::make_unique<Eigen::VectorXf>();
     rBuffer = std::make_unique<Eigen::VectorXf>();
-    intensity = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>();
-    intensityBuffer = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>();
+    intensities = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>();
+    intensitiesBuffer = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>();
     intensitiesFiltered = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>();
     cart = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>>();
 }
@@ -41,8 +42,8 @@ PointcloudProcessing::PointcloudProcessing(int pclSize, std::string pathToConfig
     r = std::make_unique<Eigen::VectorXf>(pclSize);
     azimBuffer = std::make_unique<Eigen::VectorXf>(pclSize);
     rBuffer = std::make_unique<Eigen::VectorXf>(pclSize);
-    intensity = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(pclSize);
-    intensityBuffer = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(pclSize);
+    intensities = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(pclSize);
+    intensitiesBuffer = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(pclSize);
     intensitiesFiltered = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(pclSize);
     cart = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>>(pclSize, 3);
 }
@@ -51,7 +52,7 @@ void PointcloudProcessing::resizeCoordinates(int pclSize) {
     xBuffer->resize(pclSize);
     yBuffer->resize(pclSize);
     zBuffer->resize(pclSize);
-    intensityBuffer->resize(pclSize);
+    intensitiesBuffer->resize(pclSize);
     azimBuffer->resize(pclSize);
     rBuffer->resize(pclSize);
 }
@@ -87,7 +88,7 @@ Eigen::VectorXf PointcloudProcessing::getR() {
 }
 
 Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> PointcloudProcessing::getIntensities() {
-    return (*intensity);
+    return (*intensities);
 }
 
 Eigen::VectorXi PointcloudProcessing::getClusters() {
@@ -144,7 +145,7 @@ bool PointcloudProcessing::filterPoints(const Eigen::Array <bool, Eigen::Dynamic
     z->resize(size);
     azim->resize(size);
     r->resize(size);
-    intensity->resize(size);
+    intensities->resize(size);
 
     unsigned int counter = 0;
 	for(unsigned int i = 0; i < xBuffer->rows(); i++) {
@@ -154,7 +155,7 @@ bool PointcloudProcessing::filterPoints(const Eigen::Array <bool, Eigen::Dynamic
             (*z)(counter) = (*zBuffer)(i);
             (*azim)(counter) = (*azimBuffer)(i);
             (*r)(counter) = (*rBuffer)(i);
-            (*intensity)(counter++) = (*intensityBuffer)(i);
+            (*intensities)(counter++) = (*intensitiesBuffer)(i);
 		}
 	}
     return true;
@@ -376,7 +377,7 @@ bool PointcloudProcessing::filterGround() {
             (*cart)(counter,0) = (*x)(i);
             (*cart)(counter,1) = (*y)(i);
             (*cart)(counter,2) = (*z)(i);
-            (*intensitiesFiltered)(counter++) = (*intensity)(i);
+            (*intensitiesFiltered)(counter++) = (*intensities)(i);
 		}
 	}
     return true;
@@ -385,8 +386,10 @@ bool PointcloudProcessing::filterGround() {
 void PointcloudProcessing::nonGroundClustering() {
     if(clusterSettings.clusteringMethod == 0)
         hierarchicalClustering();
-    else if(clusterSettings.clusteringMethod != 0)
+    else if(clusterSettings.clusteringMethod == 1)
         DBSCANclustering();
+    else
+        HPDBSCANclustering();
     clustersVectorFun();
 }
 
@@ -416,6 +419,7 @@ void PointcloudProcessing::DBSCANclustering() {
 	int N = cart->rows();
 	std::vector<Point> points(N);
 	clusters.resize(N);
+    // #pragma omp parallel for ordered shared(cart,points) num_threads(NUM_OF_THREADS)
 	for(int i = 0; i < N; i++) {
 		points.at(i).x = (*cart)(i,0);
 		points.at(i).y = (*cart)(i,1);
@@ -424,8 +428,21 @@ void PointcloudProcessing::DBSCANclustering() {
 	}
 	DBSCAN db(clusterSettings.DBminPts, clusterSettings.DBepsilon, points);
 	db.run();
+    // #pragma omp parallel for ordered shared(clusters,db) num_threads(NUM_OF_THREADS)
 	for(int i = 0; i < N; i++)
 		clusters(i) = db.m_points.at(i).clusterID-1;
+}
+
+void PointcloudProcessing::HPDBSCANclustering() {
+    int N = cart->rows();
+    clusters.resize(N);
+    HPDBSCAN db(sqrt(clusterSettings.DBepsilon), clusterSettings.DBminPts);
+    Clusters clusterId = db.cluster<float>(cart->data(), N, 3, NUM_OF_THREADS);
+    for(int i = 0; i < N; i++) {
+		clusters(i) = clusterId[i];
+        // std::cout << (ssize_t)clusterId[i] << " ";
+    }
+    // std::cout << "\nMin coeff of clusters = " << clusters.minCoeff() << "\nMax coeff of clusters = " << clusters.maxCoeff() << "\n";
 }
 
 // Function that extends cluster vector resulted from clustering method
@@ -569,7 +586,7 @@ int PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X,
     this->xBuffer.swap(X);
     this->yBuffer.swap(Y);
     this->zBuffer.swap(Z);
-    this->intensityBuffer.swap(intensities);
+    this->intensitiesBuffer.swap(intensities);
     if(xBuffer->size() == 0)
         return -1;
     // std::cout << "Pointcloud size before base filter = " << xBuffer->size() << std::endl;
