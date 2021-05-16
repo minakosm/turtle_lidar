@@ -4,3 +4,6 @@
 [submodule "modules/hclust-cpp"]
 	path = modules/hclust-cpp
 	url = https://github.com/cdalitz/hclust-cpp
+[submodule "modules/hpdbscan"]
+	path = modules/hpdbscan
+	url = https://github.com/Markus-Goetz/hpdbscan
