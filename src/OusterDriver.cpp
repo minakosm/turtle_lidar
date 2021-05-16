@@ -355,9 +355,11 @@ void OusterDriver::handleLidarScan() {
         // + offsetLut(i, 2);
         (*intensities)(i) = intensities_process_buffer[i];
     }
-    if(invertXY)
-    	(*X) = -(*X);
+    if(invertXY) {
+        (*X) = -(*X);
         (*Y) = -(*Y);
+    }
+
 
     if(publishRaw)
         publishRawPointcloud();

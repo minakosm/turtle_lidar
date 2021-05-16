@@ -6,7 +6,7 @@
 
 struct Lines {
 	Eigen::MatrixXf linesMatrix;
-	Eigen::MatrixXf linesMedianMatrixX;
+	Eigen::MatrixXf linesMedianMatrixX;     
 	Eigen::MatrixXf linesMedianMatrixY;
 	Eigen::VectorXi sizes;
 	
@@ -18,11 +18,12 @@ struct Lines {
 	}
 };
 
+// Struct that holds information about a segment's regressed lines
 struct SegmentLines {
-	Eigen::VectorXf linesMatrix;
-	Eigen::VectorXf linesMedianMatrixX;
-	Eigen::VectorXf linesMedianMatrixY;
-	int size;
+	Eigen::VectorXf linesMatrix;            // Vector that holds the values of m,b from each line regressed in the segment (y = m*x + b) 
+	Eigen::VectorXf linesMedianMatrixX;     // Vector that contains the X coordinates of median points that come up from the lines' start points and end points
+	Eigen::VectorXf linesMedianMatrixY;     // Vector that contains the Y coordinates of median points that come up from the lines' start points and end points
+	int size;                               // Number of lines regressed in the segment
 	
 	SegmentLines(int bins) {
 		linesMatrix = Eigen::VectorXf::Zero(2*(bins - 1));
