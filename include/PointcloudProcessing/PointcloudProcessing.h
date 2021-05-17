@@ -8,6 +8,7 @@
 
 #include "settings.h"
 #include "lines.h"
+#include "hpdbscan.h"
 #include "bayes.h"
 #include "utils.h"
 
@@ -32,6 +33,7 @@ class PointcloudProcessing {
         Lines lines;                                            // struct variable that holds information about the lines regressed in each segment
         Eigen::Array <bool, Eigen::Dynamic, 1> groundArray;     // (number_of_points_after_BaseFilter x 1) Vector that contains true or false corresponding to a point being a ground point or a non-ground point
         Eigen::VectorXd condensedClusterDistances;              // condensed vector that contains distances between non-ground points used for hierarchical clustering (number_of_non_ground_points * (number_of_non_ground_points - 1) / 2))
+        HPDBSCAN hpdbscanClusterer;                               // Object containing methods for Highly Parallel DBSCAN clustering
         Eigen::VectorXi clusters;                               // Vector that contains the label of the cluster a specific point belongs to (number_of_non_ground_points x 1)
         int numberOfClusters;                                   // Number of clusters
         Eigen::Array <bool, Eigen::Dynamic, 1> coneClusters;

@@ -14,7 +14,12 @@
 #include <algorithm>
 #include <chrono>
 
-PointcloudProcessing::PointcloudProcessing(std::string pathToConfigFile) : baseFilter(segments, bins, pathToConfigFile), groundFilter(pathToConfigFile), clusterSettings(pathToConfigFile), classifierSettings(pathToConfigFile), lines(segments, bins) {
+PointcloudProcessing::PointcloudProcessing(std::string pathToConfigFile) : baseFilter(segments, bins, pathToConfigFile), 
+                                                                           groundFilter(pathToConfigFile), 
+                                                                           clusterSettings(pathToConfigFile), 
+                                                                           classifierSettings(pathToConfigFile), 
+                                                                           lines(segments, bins), 
+                                                                           hpdbscanClusterer(sqrt(clusterSettings.DBepsilon), clusterSettings.DBminPts) {
     x = std::make_unique<Eigen::VectorXf>();
     y = std::make_unique<Eigen::VectorXf>();
     z = std::make_unique<Eigen::VectorXf>();
@@ -31,7 +36,12 @@ PointcloudProcessing::PointcloudProcessing(std::string pathToConfigFile) : baseF
     cart = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>>();
 }
 
-PointcloudProcessing::PointcloudProcessing(int pclSize, std::string pathToConfigFile) : baseFilter(segments, bins, pathToConfigFile), groundFilter(pathToConfigFile), clusterSettings(pathToConfigFile), classifierSettings(pathToConfigFile), lines(segments, bins) {
+PointcloudProcessing::PointcloudProcessing(int pclSize, std::string pathToConfigFile) : baseFilter(segments, bins, pathToConfigFile), 
+                                                                                        groundFilter(pathToConfigFile), 
+                                                                                        clusterSettings(pathToConfigFile), 
+                                                                                        classifierSettings(pathToConfigFile), 
+                                                                                        lines(segments, bins),
+                                                                                        hpdbscanClusterer(sqrt(clusterSettings.DBepsilon), clusterSettings.DBminPts) {
     x = std::make_unique<Eigen::VectorXf>(pclSize);
     y = std::make_unique<Eigen::VectorXf>(pclSize);
     z = std::make_unique<Eigen::VectorXf>(pclSize);
@@ -436,11 +446,23 @@ void PointcloudProcessing::DBSCANclustering() {
 void PointcloudProcessing::HPDBSCANclustering() {
     int N = cart->rows();
     clusters.resize(N);
-    HPDBSCAN db(sqrt(clusterSettings.DBepsilon), clusterSettings.DBminPts);
-    Clusters clusterId = db.cluster<float>(cart->data(), N, 3, NUM_OF_THREADS);
+    Clusters clusterId = hpdbscanClusterer.cluster<float>(cart->data(), N, 3, NUM_OF_THREADS);
+    std::map<Cluster, int> m;
+    int counter = 0;
     for(int i = 0; i < N; i++) {
-		clusters(i) = clusterId[i];
-        // std::cout << (ssize_t)clusterId[i] << " ";
+        if(clusterId[i] == 0) {
+            clusters(i) = -1;
+        } else {
+            ssize_t cId = (clusterId[i] > 0) ? clusterId[i] : -clusterId[i];
+            auto search = m.find(cId);
+            if(search != m.end()) {
+                clusters(i) = search->second;
+            } else {
+                clusters(i) = counter;
+                m.insert(std::pair<Cluster,int>(cId,counter++));
+            }
+        }
+        // std::cout << (ssize_t)clusterId[i] << " -> " << clusters(i) << std::endl;
     }
     // std::cout << "\nMin coeff of clusters = " << clusters.minCoeff() << "\nMax coeff of clusters = " << clusters.maxCoeff() << "\n";
 }
