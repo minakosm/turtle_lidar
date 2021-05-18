@@ -25,6 +25,7 @@ find_package(jsoncpp REQUIRED)
 find_package(ament_index_cpp)
 find_package(turtle_common REQUIRED)
 find_package(turtle_interfaces REQUIRED)
+find_package(HDF5 1.8.10 REQUIRED)
 #find_package(Boost REQUIRED COMPONENTS property_tree)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -37,7 +38,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/dbscan
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/hpdbscan/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/gaussian-naive-bayes-classifier
-                    "${HDF5_INCLUDE_DIRS}")
+                    ${HDF5_INCLUDE_DIRS})
 
 # Ouster client library section
 add_library(ouster_client SHARED modules/ouster_client/src/client.cpp 
@@ -57,8 +58,8 @@ add_library(DBSCAN SHARED modules/dbscan/dbscan.cpp)
 add_library(HPDBSCAN SHARED modules/hpdbscan/src/hpdbscan.cpp)
 find_package(OpenMP 4.0 REQUIRED)
 target_link_libraries(HPDBSCAN PRIVATE ${OpenMP_CXX_FLAGS})
-find_package(HDF5 1.8.10 REQUIRED)
-target_link_libraries(HPDBSCAN PRIVATE "${HDF5_LIBRARIES}")
+target_compile_options(HPDBSCAN PRIVATE ${OpenMP_CXX_FLAGS})
+target_link_libraries(HPDBSCAN PRIVATE ${HDF5_LIBRARIES})
 
 # Gaussian Naive Bayes Classifier library for C++
 add_library(GNBC SHARED modules/gaussian-naive-bayes-classifier/bayes.cpp)
@@ -71,7 +72,7 @@ add_library(PointcloudProcessing SHARED src/PointcloudProcessing.cpp)
 target_link_libraries(PointcloudProcessing Eigen3::Eigen)
 target_link_libraries(PointcloudProcessing DBSCAN)
 target_link_libraries(PointcloudProcessing HPDBSCAN)
-target_link_libraries(PointcloudProcessing "${HDF5_LIBRARIES}")
+target_link_libraries(PointcloudProcessing ${HDF5_LIBRARIES})
 target_link_libraries(PointcloudProcessing FastCluster)
 target_link_libraries(PointcloudProcessing LidarSettings)
 target_link_libraries(PointcloudProcessing GNBC)
