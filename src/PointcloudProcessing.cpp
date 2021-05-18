@@ -13,6 +13,7 @@
 #include <iostream>
 #include <algorithm>
 #include <chrono>
+#include <map>
 
 PointcloudProcessing::PointcloudProcessing(std::string pathToConfigFile) : baseFilter(segments, bins, pathToConfigFile), 
                                                                            groundFilter(pathToConfigFile), 
