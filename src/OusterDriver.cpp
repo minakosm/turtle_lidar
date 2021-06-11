@@ -198,8 +198,10 @@ void OusterDriver::initialize() {
 }
 
 void OusterDriver::initializePublishers() {
+    rclcpp::SensorDataQoS sensorQos;
     if(publishRaw) {
-        rawPointcloudPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/rawPointcloud", 10);
+        
+        rawPointcloudPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/rawPointcloud", sensorQos);
 
         rawPointcloudMsg.header.frame_id = "os1";
 
@@ -240,7 +242,7 @@ void OusterDriver::initializePublishers() {
         rawPointcloudMsg.data.resize(rawPointcloudMsg.point_step * width * height);
     }
     if(publishCones) {
-        conesDetectedPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/conesDetected", 10);
+        conesDetectedPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/lidar_landmarks", sensorQos);
 
         conesDetectedMsg.header.frame_id = "os1";
 
