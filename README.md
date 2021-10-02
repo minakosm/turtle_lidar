@@ -6,21 +6,11 @@ A package containing C++ library files and a test executable that implement a gr
 
 #### Prerequisites  
 - Boost (Usually every Unix OS comes preinstalled with Boost. If not, install every submodule with `sudo apt-get install libboost-all-dev`)
-- [Eigen 3.3.7](https://gitlab.com/libeigen/eigen/-/archive/3.3.7/eigen-3.3.7.tar.gz)
+- [Eigen](https://eigen.tuxfamily.org/)
 - CMake 3.10 minimum
-
+- ROS2
+- [turtle_common](https://gitlab.com/aristurtle/dv/turtle_common)
+- [turtle_interfaces](https://gitlab.com/aristurtle/dv/turtle_interfaces)
 
 #### Installation instructions  
-1. git clone https://gitlab.com/aristurtle/dv/lidar-vision-pipeline.git --branch lidarDriver --recursive
-2. mkdir build
-3. cd build
-4. cmake ..
-5. make
-
-You can test the library using points from example/lidar.txt file by running:  
-./TestExample  
-in the build directory. You can change the pipeline parameters by editing config.ini (no need to rebuild the whole project)  
-  
-#### TODO   
-ROS Wrapper  
-Cone color detection from cone clusters
+Clone the repo to your ROS2 workspace src folder using `git clone https://gitlab.com/aristurtle/dv/turtle_lidar.git --recursive` and built it like a normal ROS2 package using `colcon build`
