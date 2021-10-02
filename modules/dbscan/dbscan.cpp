@@ -48,7 +48,7 @@ int DBSCAN::expandCluster(Point point, int clusterID)
 
     if ( clusterSeeds.size() < m_minPoints )
     {
-        point.clusterID = NOISE;
+        point.clusterID = NOISE_POINT;
         return FAILURE;
     }
     else
@@ -75,7 +75,7 @@ int DBSCAN::expandCluster(Point point, int clusterID)
                 vector<int>::iterator iterNeighors;
                 for ( iterNeighors = clusterNeighors.begin(); iterNeighors != clusterNeighors.end(); ++iterNeighors )
                 {
-                    if ( m_points.at(*iterNeighors).clusterID == UNCLASSIFIED || m_points.at(*iterNeighors).clusterID == NOISE )
+                    if ( m_points.at(*iterNeighors).clusterID == UNCLASSIFIED || m_points.at(*iterNeighors).clusterID == NOISE_POINT )
                     {
                         if ( m_points.at(*iterNeighors).clusterID == UNCLASSIFIED )
                         {

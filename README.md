@@ -11,7 +11,7 @@ A package containing C++ library files and a test executable that implement a gr
 
 
 #### Installation instructions  
-1. git clone https://gitlab.com/aristurtle/dv/lidar-vision-pipeline.git --branch develop --recursive
+1. git clone https://gitlab.com/aristurtle/dv/lidar-vision-pipeline.git --branch lidarDriver --recursive
 2. mkdir build
 3. cd build
 4. cmake ..

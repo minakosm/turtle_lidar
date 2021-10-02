@@ -1,0 +1,447 @@
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <eigen3/Eigen/Dense>
+#include <json/json.h>
+#include <fstream>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+#include <chrono>
+#include <cstdint>
+
+#include "OusterDriver.h"
+#include "PointcloudProcessing.h"
+#include "bayes.h"
+#include "utils.h"
+
+#include "ouster/client.h"
+#include "ouster/lidar_scan.h"
+#include "ouster/types.h"
+#include "ouster/impl/parsing.h"
+
+#include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
+
+#ifndef PI
+#define PI 3.141593
+#endif
+
+OusterDriver::OusterDriver(std::string configFilePath,
+                           std::string coneTrainXFilePath,
+                           std::string coneTrainYFilePath) : Node("OusterDriver"), 
+                                                             pointcloudProcessor(configFilePath),
+                                                             coneClassifier() {
+    // Read related settings from INI file
+    readSettingsFromINI(configFilePath);
+
+    // Cone classifier training
+    Eigen::MatrixXf coneTrainDataX;
+    Eigen::Matrix<int, Eigen::Dynamic, 1> coneTrainDataY;
+    read_matrix<float>(coneTrainXFilePath, coneTrainDataX);
+    read_vector<int>(coneTrainYFilePath, coneTrainDataY);
+    Eigen::MatrixXf circleRadius = coneTrainDataX.col(0);
+    Eigen::MatrixXf averageHeight = coneTrainDataX.col(1);
+    Eigen::MatrixXf pRR = coneTrainDataX.col(2);
+    int count = 0;
+    if(pointcloudProcessor.getClassifierSettings().useCircleRegression) {
+        coneTrainDataX.col(count) = circleRadius;
+        count++;
+    }
+    if(pointcloudProcessor.getClassifierSettings().useAverageHeight) {
+        coneTrainDataX.col(count) = averageHeight;
+        count++;
+    }
+    if(pointcloudProcessor.getClassifierSettings().usepRR) {
+        coneTrainDataX.col(count) = pRR;
+        count++;
+    }
+    assert(count != 0);
+    coneTrainDataX.conservativeResize(Eigen::NoChange, count);
+    coneClassifier.train(coneTrainDataX, coneTrainDataY);
+
+    // Set object-related parameters to their respective value based on lidar-mode
+    height = 32;
+    counter = 0;
+    scan_counter = 0;
+    switch(lidarMode) {
+        case ouster::sensor::MODE_512x10:
+            width = 512;
+            rotationRate = 10;
+            packetsPerScan = 32;
+            break;
+        case ouster::sensor::MODE_512x20:
+            width = 512;
+            rotationRate = 20;
+            packetsPerScan = 32;
+            break;
+        case ouster::sensor::MODE_1024x10:
+            width = 1024;
+            rotationRate = 10;
+            packetsPerScan = 64;
+            break;
+        case ouster::sensor::MODE_1024x20:
+            width = 1024;
+            rotationRate = 20;
+            packetsPerScan = 64;
+            break;
+        case ouster::sensor::MODE_2048x10:
+            width = 2048;
+            rotationRate = 10;
+            packetsPerScan = 128;
+            break;
+        default:
+            RCLCPP_ERROR(this->get_logger(), "Invalid lidar_mode");
+            return;
+    }
+    times_buffer.resize(width);
+    ranges_buffer.resize(width * height);
+    intensities_buffer.resize(width * height);
+
+    pointcloudProcessor.resizeCoordinates(width * height);
+
+    times_process_buffer.resize(width);
+    ranges_process_buffer.resize(width * height);
+    intensities_process_buffer.resize(width * height);
+
+    X = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 1>>(width * height);
+    Y = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 1>>(width * height);
+    Z = std::make_unique<Eigen::Matrix <float, Eigen::Dynamic, 1>>(width * height);
+    intensities = std::make_unique<Eigen::Matrix <uint16_t, Eigen::Dynamic, 1>>(width * height);
+
+    runDriver();
+}
+
+OusterDriver::~OusterDriver() {
+    delete[] imu_buf;
+    delete[] lidar_buf;
+}
+
+void OusterDriver::readSettingsFromINI(std::string pathToIniFile) {
+    boost::property_tree::ptree pt;
+	boost::property_tree::ini_parser::read_ini(pathToIniFile, pt);
+
+    host_ip = pt.get<std::string>("Lidar.hostIP");
+    lidar_ip = pt.get<std::string>("Lidar.lidarIP");
+    lidarMode = (ouster::sensor::lidar_mode)pt.get<int>("Lidar.lidarMode");
+    timestampMode = (ouster::sensor::timestamp_mode)pt.get<int>("Lidar.timestampMode");
+    publishRaw = pt.get<bool>("Lidar.publishRawPointcloud");
+    invertXY = pt.get<bool>("Lidar.invertXYMode");
+    runPipeline = pt.get<bool>("Lidar.runPipeline");
+    publishCones = pt.get<bool>("Lidar.publishConesDetectedPointcloud");
+    imuMode = pt.get<bool>("Lidar.imuMode");
+    lidar_origin_to_beam_origin = pt.get<float>("Lidar.lidar_origin_to_beam_origin");
+    maxPointsProcessing = pt.get<int>("Lidar.maxPointsProcessing");
+    timeoutProcessing = pt.get<int>("Lidar.timeoutProcessing");
+}
+
+int OusterDriver::runDriver() {
+    cli = ouster::sensor::init_client(lidar_ip, host_ip, lidarMode, timestampMode);
+    if (!cli) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to connect to client at: %s", lidar_ip);
+        return 1;
+    }
+    RCLCPP_INFO(this->get_logger(), "Lidar Driver Initializing");
+    initialize();
+    initializePublishers();
+    RCLCPP_INFO(this->get_logger(), "Lidar Driver Initialized");
+
+    imu_buf = new uint8_t[ouster::sensor::impl::imu_packet_size + 1];
+    lidar_buf = new uint8_t[ouster::sensor::lidar_packet_bytes_OS1_32 + 1];
+
+    ouster::sensor::client_state st;
+    while (rclcpp::ok()) {
+        st = ouster::sensor::poll_client(*cli, 1);
+        if (st & ouster::sensor::CLIENT_ERROR) {
+            RCLCPP_ERROR(this->get_logger(), "Lidar returned error status");
+            return 3;
+        }
+        else if ((imuMode == true) && (st & ouster::sensor::IMU_DATA)) {
+            // auto k1 = std::chrono::high_resolution_clock::now();
+            imuMsg.header.stamp = rclcpp::Node::now();
+            if (ouster::sensor::read_imu_packet(*cli, imu_buf, ouster::sensor::impl::imu_packet_size)) {
+                handleImu();
+            }
+            else
+                RCLCPP_ERROR(this->get_logger(), "read_imu_packet failed");
+            // auto k2 = std::chrono::high_resolution_clock::now();
+            // RCLCPP_INFO(this->get_logger(), "Imu total time = %lluμs", std::chrono::duration_cast<std::chrono::microseconds>(k2 - k1).count());
+        }
+        else if (st & ouster::sensor::LIDAR_DATA) {
+            // auto k1 = std::chrono::high_resolution_clock::now();
+            if(counter == 0) {
+                rawPointcloudMsg.header.stamp = rclcpp::Node::now();
+                conesDetectedMsg.header.stamp = rawPointcloudMsg.header.stamp;
+            }
+            if (ouster::sensor::read_lidar_packet(*cli, lidar_buf, ouster::sensor::lidar_packet_bytes_OS1_32)) {
+                handleLidar();
+            }
+            else
+                RCLCPP_ERROR(this->get_logger(), "read_lidar_packet failed");
+            // auto k2 = std::chrono::high_resolution_clock::now();
+            // RCLCPP_INFO(this->get_logger(), "Lidar total time = %lluμs", std::chrono::duration_cast<std::chrono::microseconds>(k2 - k1).count());
+        }
+    }
+    return -1;
+}
+
+void OusterDriver::initialize() {
+    beam_azim_angles.resize(height);
+    beam_alt_angles.resize(height);
+    for(int i = 0; i < height; i++) {
+        beam_azim_angles[i] = cli->meta["beam_azimuth_angles"][i].asFloat();
+        beam_alt_angles[i] = cli->meta["beam_altitude_angles"][i].asFloat();
+        // std::cout << "beam_azim_angles[" << i << "] = " << beam_azim_angles[i] << "   "
+                //   << "beam_alt_angles[" << i << "] = " << beam_alt_angles[i] << std::endl;
+    }
+    makeXYZLut();
+}
+
+void OusterDriver::initializePublishers() {
+    rclcpp::SensorDataQoS sensorQos;
+    if(publishRaw) {
+        
+        rawPointcloudPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/rawPointcloud", sensorQos);
+
+        rawPointcloudMsg.header.frame_id = "os1";
+
+        rawPointcloudMsg.width = width;
+        rawPointcloudMsg.height = height;
+        rawPointcloudMsg.is_bigendian = false;
+        rawPointcloudMsg.is_dense = true;
+        rawPointcloudMsg.point_step = 18;
+        rawPointcloudMsg.row_step = width * rawPointcloudMsg.point_step;
+        
+        rawPointcloudMsg.fields.resize(5);
+
+        rawPointcloudMsg.fields[0].name = "x";
+        rawPointcloudMsg.fields[0].offset = 0;
+        rawPointcloudMsg.fields[0].datatype = 7;
+        rawPointcloudMsg.fields[0].count = 1;
+
+        rawPointcloudMsg.fields[1].name = "y";
+        rawPointcloudMsg.fields[1].offset = 4;
+        rawPointcloudMsg.fields[1].datatype = 7;
+        rawPointcloudMsg.fields[1].count = 1;
+
+        rawPointcloudMsg.fields[2].name = "z";
+        rawPointcloudMsg.fields[2].offset = 8;
+        rawPointcloudMsg.fields[2].datatype = 7;
+        rawPointcloudMsg.fields[2].count = 1;
+
+        rawPointcloudMsg.fields[3].name = "t";
+        rawPointcloudMsg.fields[3].offset = 12;
+        rawPointcloudMsg.fields[3].datatype = 6;
+        rawPointcloudMsg.fields[3].count = 1;
+
+        rawPointcloudMsg.fields[4].name = "intensity";
+        rawPointcloudMsg.fields[4].offset = 16;
+        rawPointcloudMsg.fields[4].datatype = 4;
+        rawPointcloudMsg.fields[4].count = 1;
+
+        rawPointcloudMsg.data.resize(rawPointcloudMsg.point_step * width * height);
+    }
+    if(publishCones) {
+        conesDetectedPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/lidar_landmarks", sensorQos);
+
+        conesDetectedMsg.header.frame_id = "os1";
+
+        conesDetectedMsg.is_bigendian = false;
+        conesDetectedMsg.is_dense = true;
+        conesDetectedMsg.point_step = 12;
+
+        conesDetectedMsg.fields.resize(3);
+
+        conesDetectedMsg.fields[0].name = "x";
+        conesDetectedMsg.fields[0].offset = 0;
+        conesDetectedMsg.fields[0].datatype = 7;
+        conesDetectedMsg.fields[0].count = 1;
+
+        conesDetectedMsg.fields[1].name = "y";
+        conesDetectedMsg.fields[1].offset = 4;
+        conesDetectedMsg.fields[1].datatype = 7;
+        conesDetectedMsg.fields[1].count = 1;
+
+        conesDetectedMsg.fields[2].name = "z";
+        conesDetectedMsg.fields[2].offset = 8;
+        conesDetectedMsg.fields[2].datatype = 7;
+        conesDetectedMsg.fields[2].count = 1;
+    }
+    if(imuMode) {
+        imuPublisher = this->create_publisher<turtle_interfaces::msg::OusterImu>("/ouster/imu", 10);
+
+        imuMsg.header.frame_id = "os1";
+    }
+}
+
+void OusterDriver::makeXYZLut() {
+    Eigen::ArrayXf encoder(width * height);
+    Eigen::ArrayXf azimuth(width * height);
+    Eigen::ArrayXf altitude(width * height);
+
+    const float azimuth_radians = PI * 2.0 / width;
+
+    for (int i = 0; i < width; i++) {
+        for (int j = 0; j < height; j++) {
+            encoder(i*height + j) = 2 * PI - (i * azimuth_radians);
+            azimuth(i*height + j) = -beam_azim_angles[j] * PI / 180.0f;
+            altitude(i*height + j) = beam_alt_angles[j] * PI / 180.0f;
+        }
+    }
+
+    directionLut.resize(width * height, 3);
+    offsetLut.resize(width * height, 3);
+
+    // unit vectors for each pixel
+    directionLut.col(0) = (encoder + azimuth).cos() * altitude.cos();
+    directionLut.col(1) = (encoder + azimuth).sin() * altitude.cos();
+    directionLut.col(2) = altitude.sin();
+
+    // offsets due to beam origin
+    offsetLut.col(0) = encoder.cos() - directionLut.col(0);
+    offsetLut.col(1) = encoder.sin() - directionLut.col(1);
+    offsetLut.col(2) = -directionLut.col(2);
+    offsetLut *= lidar_origin_to_beam_origin;
+}
+
+void OusterDriver::handleLidar() {
+    const uint8_t* col_buf_check = ouster::sensor::impl::nth_col<32>(0, lidar_buf);
+    if(ouster::sensor::impl::col_frame_id(col_buf_check) < 20 || (counter == 0 && ouster::sensor::impl::col_measurement_id(col_buf_check) != 0))
+        return;
+    // RCLCPP_INFO(this->get_logger(), "Handle Lidar Start with counter = %u", counter);
+    // static int checkEncoderValue = 0;
+    // if(checkEncoderValue < 128) {
+    //     RCLCPP_INFO(this->get_logger(), "\nInitial encoder value = %lu\nInitial frame_id value = %lu\nInitial measurement_id value = %lu", ouster::sensor::impl::col_encoder(col_buf_check), ouster::sensor::impl::col_frame_id(col_buf_check), ouster::sensor::impl::col_measurement_id(col_buf_check));
+    //     checkEncoderValue++;
+    // }
+
+	// #pragma omp parallel for ordered num_threads(2)
+    for(int i = 0; i < ouster::sensor::impl::cols_per_packet; i++) {
+	    const uint8_t* col_buf = ouster::sensor::impl::nth_col<32>(i, lidar_buf);
+        // if(i == 0)
+        //     RCLCPP_INFO(this->get_logger(), "\nLidar and ros timestamp difference: %lfms", ((double)(rawPointcloudMsg.header.stamp.sec*1e+9 + (double)rawPointcloudMsg.header.stamp.nanosec - (double)ouster::sensor::impl::col_timestamp(col_buf))) / 1e+6);
+	    if(ouster::sensor::impl::col_status<32>(col_buf)) {
+	        times_buffer[counter * ouster::sensor::impl::cols_per_packet + i] = ouster::sensor::impl::col_timestamp(col_buf);
+	        const uint8_t* px;
+	        for(int j = 0; j < height; j++) {
+	            px = ouster::sensor::impl::nth_px(j, col_buf);
+	            ranges_buffer[counter*ouster::sensor::impl::cols_per_packet*height + i*height + j] = ouster::sensor::impl::px_range(px);
+	            intensities_buffer[counter*ouster::sensor::impl::cols_per_packet*height + i*height + j] = ouster::sensor::impl::px_reflectivity(px);
+	        }
+	    }
+	}
+	counter++;
+	if(counter == packetsPerScan) {
+	    counter = 0;
+	    times_buffer.swap(times_process_buffer);
+	    ranges_buffer.swap(ranges_process_buffer);
+	    intensities_buffer.swap(intensities_process_buffer);
+
+        std::thread t(&OusterDriver::handleLidarScan, this);
+	    t.detach();
+	}
+    // RCLCPP_INFO(this->get_logger(), "Handle Lidar End");
+}
+
+void OusterDriver::handleLidarScan() {
+    scan_counter++;
+    // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan start");
+
+    // TODO change to a single for-loop
+    for(int i = 0; i < width * height; i++) {
+        (*X)(i) = ranges_process_buffer[i] * 0.001 * directionLut(i, 0);
+        // + offsetLut(i, 0);
+        (*Y)(i) = ranges_process_buffer[i] * 0.001 * directionLut(i, 1); 
+        // + offsetLut(i, 1);
+        (*Z)(i) = ranges_process_buffer[i] * 0.001 * directionLut(i, 2);
+        // + offsetLut(i, 2);
+        (*intensities)(i) = intensities_process_buffer[i];
+    }
+    if(invertXY) {
+        (*X) = -(*X);
+        (*Y) = -(*Y);
+    }
+
+
+    if(publishRaw)
+        publishRawPointcloud();
+    
+    if(runPipeline) {
+        if(pclProcessorMutex.try_lock()) {
+            // RCLCPP_INFO(this->get_logger(), "PCL Processor started");
+            int processReturnFlag = pointcloudProcessor.pipeline(X, Y, Z, intensities, coneClassifier, conePos, maxPointsProcessing, timeoutProcessing);
+            if(processReturnFlag == 0) {
+                RCLCPP_INFO(this->get_logger(), "Filtered ground PCL size = %d\n", pointcloudProcessor.getNonGroundPoints());
+                RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
+                if(publishCones)
+                    publishDetectedCones(0.0, 0.0, 0.0);
+            }
+            else if(processReturnFlag == -100) {
+                RCLCPP_INFO(this->get_logger(), "PCL Processor timed-out");
+                RCLCPP_INFO(this->get_logger(), "Filtered ground PCL size = %d\n", pointcloudProcessor.getNonGroundPoints());
+            }
+            else if(processReturnFlag == -101) {
+                RCLCPP_INFO(this->get_logger(), "PCL Processor point limit reached");
+                RCLCPP_INFO(this->get_logger(), "Filtered ground PCL size = %d\n", pointcloudProcessor.getNonGroundPoints());
+            }
+            else {
+                RCLCPP_INFO(this->get_logger(), "PCL Processor returned ERROR flag: %d", processReturnFlag);
+            }
+            // RCLCPP_INFO(this->get_logger(), "PCL Processor ended");
+            pclProcessorMutex.unlock();
+        }
+        else {
+            RCLCPP_INFO(this->get_logger(), "Pipeline mutex is locked, ignoring current pointcloud\n");
+        }
+    }
+    // RCLCPP_INFO(this->get_logger(), "Handle Lidar Scan end");
+}
+
+void OusterDriver::publishDetectedCones(double xPos, double yPos, double yaw) {
+    Eigen::Matrix<float, Eigen::Dynamic, 1> xCones(conePos.rows()), yCones(conePos.rows());
+    xCones = (conePos.col(0).array()*std::cos(yaw) - conePos.col(1).array()*std::sin(yaw) + xPos).matrix();
+    yCones = (conePos.col(0).array()*std::sin(yaw) + conePos.col(1).array()*std::cos(yaw) + yPos).matrix();
+
+    conesDetectedMsg.width = conePos.rows();
+    conesDetectedMsg.height = 1;
+    conesDetectedMsg.row_step = conesDetectedMsg.width * conesDetectedMsg.point_step;
+    conesDetectedMsg.data.resize(conesDetectedMsg.row_step);
+    uint8_t* ptr = conesDetectedMsg.data.data();
+    for(int i = 0; i < xCones.size(); i++) {
+        *((float*)(ptr + i*conesDetectedMsg.point_step)) = xCones(i);
+        *((float*)(ptr + i*conesDetectedMsg.point_step + 4)) = yCones(i);
+        *((float*)(ptr + i*conesDetectedMsg.point_step + 8)) = 0.0;
+        // RCLCPP_INFO(this->get_logger(), "xCone = %f   yCone = %f", xCones(i), yCones(i));
+    }
+    conesDetectedPublisher->publish(conesDetectedMsg);
+}
+
+void OusterDriver::handleImu() {
+    imuMsg.imu_monotonic_time_stamp = ouster::sensor::impl::imu_sys_ts(imu_buf);
+    imuMsg.accel_time_stamp = ouster::sensor::impl::imu_accel_ts(imu_buf);
+    imuMsg.gyro_time_stamp = ouster::sensor::impl::imu_gyro_ts(imu_buf);
+
+    imuMsg.acceleration.x = (double)ouster::sensor::impl::imu_la_x(imu_buf);
+    imuMsg.acceleration.y = (double)ouster::sensor::impl::imu_la_y(imu_buf);
+    imuMsg.acceleration.z = (double)ouster::sensor::impl::imu_la_z(imu_buf);
+
+    imuMsg.angular_velocity.x = (double)ouster::sensor::impl::imu_av_x(imu_buf);
+    imuMsg.angular_velocity.y = (double)ouster::sensor::impl::imu_av_y(imu_buf);
+    imuMsg.angular_velocity.z = (double)ouster::sensor::impl::imu_av_z(imu_buf);
+
+    imuPublisher->publish(imuMsg);
+}
+
+void OusterDriver::publishRawPointcloud() {
+    // RCLCPP_INFO(this->get_logger(), "Publish raw");
+    uint8_t* ptr = rawPointcloudMsg.data.data();
+    rawPointcloudMsg.header.stamp = rclcpp::Node::now();
+    for(int i = 0; i < X->size(); i++) {
+        *((float*)(ptr + i*rawPointcloudMsg.point_step)) = (*X)(i);
+        *((float*)(ptr + i*rawPointcloudMsg.point_step + 4)) = (*Y)(i);
+        *((float*)(ptr + i*rawPointcloudMsg.point_step + 8)) = (*Z)(i);
+        *((uint32_t*)(ptr + i*rawPointcloudMsg.point_step + 12)) = (uint32_t)(times_process_buffer[i / height] / 1e+6);
+        *((uint16_t*)(ptr + i*rawPointcloudMsg.point_step + 16)) = intensities_process_buffer[i];
+    }
+    rawPointcloudPublisher->publish(rawPointcloudMsg);
+}

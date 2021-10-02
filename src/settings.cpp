@@ -1,13 +1,13 @@
-#include "settings.h"
-
 #include <ostream>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <string>
 
-BaseFilter::BaseFilter() {
+#include "settings.h"
+
+BaseFilter::BaseFilter(std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
     filterEnabled = pt.get<bool>("BaseFilter.filterEnabled");
     filterAzim = pt.get<bool>("BaseFilter.filterAzim");
@@ -22,9 +22,9 @@ BaseFilter::BaseFilter() {
     minZ = pt.get<float>("BaseFilter.minZ");
 }
 
-BaseFilter::BaseFilter(int &segments, int &bins) {
+BaseFilter::BaseFilter(int &segments, int &bins, std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
 	segments = pt.get<int>("Parameters.segments");
 	bins = pt.get<int>("Parameters.bins");
@@ -42,9 +42,9 @@ BaseFilter::BaseFilter(int &segments, int &bins) {
     minZ = pt.get<float>("BaseFilter.minZ");
 }
 
-GroundFilter::GroundFilter() {
+GroundFilter::GroundFilter(std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
     mMax = pt.get<float>("GroundFilter.mMax");
     mSmall = pt.get<float>("GroundFilter.mSmall");
@@ -55,9 +55,9 @@ GroundFilter::GroundFilter() {
     dGround = pt.get<float>("GroundFilter.dGround");
 }
 
-ClusterSettings::ClusterSettings() {
+ClusterSettings::ClusterSettings(std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
     clusteringMethod = pt.get<int>("Cluster.clusteringMethod");
     DBminPts = pt.get<int>("Cluster.DBminPts");
@@ -66,21 +66,22 @@ ClusterSettings::ClusterSettings() {
     DBepsilon = pt.get<float>("Cluster.DBepsilon");
 }
 
-ClassifierSettings::ClassifierSettings() {
+ClassifierSettings::ClassifierSettings(std::string filepath) {
     boost::property_tree::ptree pt;
-	boost::property_tree::ini_parser::read_ini("../config.ini", pt);
+	boost::property_tree::ini_parser::read_ini(filepath, pt);
 
     ignoreClusterPointsLow = pt.get<int>("Classifier.ignoreClusterPointsLow");
     ignoreClusterPointsHigh = pt.get<int>("Classifier.ignoreClusterPointsHigh");
     regressCircleMaxIter = pt.get<int>("Classifier.regressCircleMaxIter");
     
-    reconstructCluster = pt.get<bool>("Classifier.reconstructCluster");
-    useOriginalClusterCircle = pt.get<bool>("Classifier.useOriginalClusterCircle");
+    useCircleRegression = pt.get<bool>("Classifier.useCircleRegression");
+    useOriginalClusterForPos = pt.get<bool>("Classifier.useOriginalClusterForPos");
+    useAverageHeight = pt.get<bool>("Classifier.useAverageHeight");
+    usepRR = pt.get<bool>("Classifier.usepRR");
 
     r = pt.get<float>("Classifier.r");
     zMin = pt.get<float>("Classifier.zMin");
     zMax = pt.get<float>("Classifier.zMax");
-    furtherReconstructDist = pt.get<float>("Classifier.furtherReconstructDist");
     regressCircleDiffThreshold = pt.get<float>("Classifier.regressCircleDiffThreshold");
 }
 
@@ -113,8 +114,8 @@ std::ostream &operator<<(std::ostream &os, ClusterSettings const &m) {
 
 std::ostream &operator<<(std::ostream &os, ClassifierSettings const &m) {
     return os << "ignoreClusterPointsLow = " << m.ignoreClusterPointsLow << "\nignoreClusterPointsHigh = " << m.ignoreClusterPointsHigh 
-              << "\nregressCircleMaxIter = " << m.regressCircleMaxIter << "\nreconstructCluster = " << m.reconstructCluster 
-              << "\nuseOriginalClusterCircle = " << m.useOriginalClusterCircle << "\nr = " << m.r << "\nzMin = " << m.zMin << "\nzMax = " << m.zMax
-              << "\nfurtherReconstructDist = " << m.furtherReconstructDist << "\nregressCircleDiffThreshold = " << m.regressCircleDiffThreshold 
-              << std::endl << std::endl;
+              << "\nregressCircleMaxIter = " << m.regressCircleMaxIter << "\nuseCircleRegression = " << m.useCircleRegression 
+              << "\nuseOriginalClusterForPos = " << m.useOriginalClusterForPos << "\nuseAverageHeight = " << m.useAverageHeight << "\nusepRR = " << m.usepRR
+              << "\nr = " << m.r << "\nzMin = " << m.zMin << "\nzMax = " << m.zMax
+              << "\nregressCircleDiffThreshold = " << m.regressCircleDiffThreshold << std::endl << std::endl;
 }
