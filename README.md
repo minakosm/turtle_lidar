@@ -1,6 +1,6 @@
 # Lidar Vision Pipeline 
 
-A package containing C++ library files and a test executable that implement a ground removal algorithm and provides cone detection (WIP) for our vehicle.  
+A package containing C++ library files and a test executable that implement a ground removal algorithm and provides cone detection for our vehicle.  
 
 ![](https://i.imgur.com/bcOJtMK.png)
 
