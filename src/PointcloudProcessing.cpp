@@ -645,12 +645,6 @@ int PointcloudProcessing::pipeline(std::unique_ptr<Eigen::VectorXf> &X,
     if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
         return -100;
     // std::cout << "Prototype Matrix calculated\n";
-    checkPrototypePointsMatrix();
-    a2 = std::chrono::steady_clock::now();
-    // std::cout << "checkPrototypePointsMatrix time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
-    if(std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() > timeoutProcessing*1000)
-        return -100;
-    // std::cout << "Prototype Matrix checked\n";
     groundLinesFit();
     a2 = std::chrono::steady_clock::now();
     // std::cout << "groundLinesFit time in = " << std::chrono::duration_cast<chrono::microseconds>(a2 - a1).count() << "us\n";
