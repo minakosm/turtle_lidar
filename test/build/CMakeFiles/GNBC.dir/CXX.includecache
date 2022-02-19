@@ -1,0 +1,18 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ds1202/turtle_as/src/turtle_as/turtle_lidar/modules/gaussian-naive-bayes-classifier/bayes.cpp
+bayes.h
+/home/ds1202/turtle_as/src/turtle_as/turtle_lidar/modules/gaussian-naive-bayes-classifier/bayes.h
+iostream
+-
+
+/home/ds1202/turtle_as/src/turtle_as/turtle_lidar/modules/gaussian-naive-bayes-classifier/bayes.h
+eigen3/Eigen/Dense
+-
+

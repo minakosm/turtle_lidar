@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../../include/settings.h
+ostream
+-
+
+/home/ds1202/turtle_as/src/turtle_as/turtle_lidar/src/settings.cpp
+ostream
+-
+boost/property_tree/ptree.hpp
+-
+boost/property_tree/ini_parser.hpp
+-
+string
+-
+settings.h
+/home/ds1202/turtle_as/src/turtle_as/turtle_lidar/src/settings.h
+

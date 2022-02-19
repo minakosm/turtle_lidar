@@ -1,0 +1,18 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ds1202/turtle_as/src/turtle_as/turtle_lidar/modules/dbscan/dbscan.cpp
+dbscan.h
+/home/ds1202/turtle_as/src/turtle_as/turtle_lidar/modules/dbscan/dbscan.h
+
+/home/ds1202/turtle_as/src/turtle_as/turtle_lidar/modules/dbscan/dbscan.h
+vector
+-
+cmath
+-
+
