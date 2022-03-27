@@ -286,8 +286,8 @@ void OusterDriver::makeXYZLut(){
     offsetLut.resize(width * height, 3);
 
     //unit vectors for each pixel
-    directionLut.col(0) = (encoder + azimuth ).cos() - altitude.cos();
-    directionLut.col(1) = (encoder + azimuth).sin() - altitude.cos();
+    directionLut.col(0) = (encoder + azimuth ).cos() * altitude.cos();
+    directionLut.col(1) = (encoder + azimuth).sin() * altitude.cos();
     directionLut.col(2) = altitude.sin();
 
     //offsets due to beam origin
