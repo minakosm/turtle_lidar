@@ -27,14 +27,14 @@ find_package(jsoncpp REQUIRED)
 find_package(ament_index_cpp)
 find_package(turtle_common REQUIRED)
 find_package(turtle_interfaces REQUIRED)
-find_package(HDF5 1.8.10 REQUIRED)
+#find_package(HDF5 1.8.10 REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/include/OusterDriver
                     ${CMAKE_CURRENT_SOURCE_DIR}/include/PointcloudProcessing
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/ouster_client/include
-                    ${CMAKE_CURRENT_SOURCE_DIR}/include/OusterOffline
-                    ${HDF5_INCLUDE_DIRS})
+                    ${CMAKE_CURRENT_SOURCE_DIR}/include/OusterOffline)
+                    #${HDF5_INCLUDE_DIRS})
 
 #Ouster client library section
 add_library(ouster_client SHARED modules/ouster_client/src/client.cpp 
@@ -48,7 +48,7 @@ add_library(LidarSettings SHARED src/settings.cpp)
 
 add_library(PointcloudProcessing SHARED src/pointcloudProcessing.cpp)
 target_link_libraries(PointcloudProcessing Eigen3::Eigen)
-target_link_libraries(PointcloudProcessing ${HDF5_LIBRARIES})
+#target_link_libraries(PointcloudProcessing ${HDF5_LIBRARIES})
 target_link_libraries(PointcloudProcessing LidarSettings)
 
 add_library(OusterOffline SHARED src/OusterOffline.cpp)
@@ -85,6 +85,10 @@ install(
     RUNTIME DESTINATION bin
     INCLUDES DESTINATION include
 )
+
+install(FILES 
+        lidarConfig.ini 
+        DESTINATION share/${PROJECT_NAME})
 
 
 if(BUILD_TESTING)
