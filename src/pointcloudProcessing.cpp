@@ -127,7 +127,7 @@ GroundFilter PointcloudProcessing::getGroundFilterSettings(){
 
 void PointcloudProcessing::polarInit(){
     azimBuffer->resize(xBuffer->size());
-    rBuffer->resize(rBuffer->size());
+    rBuffer->resize(xBuffer->size());
 
     for(int i = 0; i<xBuffer->size(); i++){
         (*azimBuffer)(i) = std::atan2((*yBuffer)(i), (*xBuffer)(i));
