@@ -299,8 +299,8 @@ void OusterDriver::makeXYZLut(){
 
 void OusterDriver::handleLidar(){
     const uint8_t* measurement_block_buf_check = ouster::sensor::impl::nth_measurement_block<32>(0, lidar_buf);
-    //if(ouster::sensor::impl::measurement_block_frame_id(measurement_block_buf_check) < 20 || (counter == 0 && ouster::sensor::impl::measurement_block_measurement_id(measurement_block_buf_check) !=0))
-    //    return;
+    if(ouster::sensor::impl::measurement_block_frame_id(measurement_block_buf_check) < 20 || (counter == 0 && ouster::sensor::impl::measurement_block_measurement_id(measurement_block_buf_check) !=0))
+       return;
 
     for(int i = 0; i < ouster::sensor::impl::measurement_blocks_per_packet; i++){
         const uint8_t* measurement_block_buf = ouster::sensor::impl::nth_measurement_block<32>(i, lidar_buf);
