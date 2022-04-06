@@ -75,6 +75,8 @@ class OusterDriver : public rclcpp::Node{
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filteredPointcloudPublisher;
         sensor_msgs::msg::PointCloud2 filteredPointcloudMsg;
         bool publishFilteredPcl;
+        
+        bool invertXY;
 
     
         std::mutex pclProcessorMutex;
