@@ -96,6 +96,7 @@ void OusterDriver::readSettingsFromINI(std::string pathToIniFile){
     lidarMode = (ouster::sensor::lidar_mode)pt.get<int>("Lidar.lidarMode");
     timestampMode = (ouster::sensor::timestamp_mode)pt.get<int>("Lidar.timestampMode");
     publishRaw = pt.get<bool>("Lidar.publishRawPointcloud");
+    invertXY = pt.get<bool>("Lidar.invertXYMode");
     runPipeline = pt.get<bool>("Lidar.runPipeline");
     publishCones = pt.get<bool>("Lidar.publishConesDetectedPointcloud");
     lidar_origin_to_beam_origin = pt.get<float>("Lidar.lidar_origin_to_beam_origin");
@@ -338,6 +339,11 @@ void OusterDriver::handleLidarScan(){
         (*Z)(i) = ranges_process_buffer[i] * 0.001 * directionLut(i, 2);
 
         (*intensities)(i) = intensities_process_buffer[i];
+    }
+
+    if(invertXY){
+        (*X) = -(*X);
+        (*Y) = -(*Y);
     }
 
     if(publishRaw)
