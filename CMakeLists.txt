@@ -34,7 +34,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/include/PointcloudProcessing
                     ${CMAKE_CURRENT_SOURCE_DIR}/modules/ouster_client/include
                     ${CMAKE_CURRENT_SOURCE_DIR}/include/OusterOffline)
+
                     #${HDF5_INCLUDE_DIRS})
+#                   ${HDF5_INCLUDE_DIRS})
+
 
 #Ouster client library section
 add_library(ouster_client SHARED modules/ouster_client/src/client.cpp 
