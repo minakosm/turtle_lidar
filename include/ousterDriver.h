@@ -67,16 +67,12 @@ class OusterDriver : public rclcpp::Node{
         sensor_msgs::msg::PointCloud2 rawPointcloudMsg;
         bool publishRaw;
 
-        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr conesDetectedPublisher;
-        sensor_msgs::msg::PointCloud2 conesDetectedMsg;
         bool runPipeline;
-        bool publishCones;
+        bool invertXY;
 
         rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filteredPointcloudPublisher;
         sensor_msgs::msg::PointCloud2 filteredPointcloudMsg;
         bool publishFilteredPcl;
-        
-        bool invertXY;
 
     
         std::mutex pclProcessorMutex;
@@ -96,6 +92,5 @@ class OusterDriver : public rclcpp::Node{
         void handleLidar();
         void handleLidarScan();
         void publishRawPointcloud();   
-        void publishDetectedCones(double xPos, double yPos, double yaw);   
         void publishFilteredPointcloud(Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> filteredPoints, Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> intensitiesFiltered);
 };

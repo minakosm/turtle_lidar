@@ -98,7 +98,6 @@ void OusterDriver::readSettingsFromINI(std::string pathToIniFile){
     publishRaw = pt.get<bool>("Lidar.publishRawPointcloud");
     invertXY = pt.get<bool>("Lidar.invertXYMode");
     runPipeline = pt.get<bool>("Lidar.runPipeline");
-    publishCones = pt.get<bool>("Lidar.publishConesDetectedPointcloud");
     lidar_origin_to_beam_origin = pt.get<float>("Lidar.lidar_origin_to_beam_origin");
     maxPointsProcessing = pt.get<int>("Lidar.maxPointsProcessing");
     timeoutProcessing = pt.get<int>("Lidar.timeoutProcessing");
@@ -196,32 +195,6 @@ void OusterDriver::initializePublishers(){
         rawPointcloudMsg.fields[4].count = 1;
 
         rawPointcloudMsg.data.resize(rawPointcloudMsg.point_step * width * height);
-    }
-    if(publishCones) {
-        conesDetectedPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/lidar_landmarks", sensorQos);
-
-        conesDetectedMsg.header.frame_id = "os1";
-
-        conesDetectedMsg.is_bigendian = false;
-        conesDetectedMsg.is_dense = true;
-        conesDetectedMsg.point_step = 12;
-
-        conesDetectedMsg.fields.resize(3);
-
-        conesDetectedMsg.fields[0].name = "x";
-        conesDetectedMsg.fields[0].offset = 0;
-        conesDetectedMsg.fields[0].datatype = 7;
-        conesDetectedMsg.fields[0].count = 1;
-
-        conesDetectedMsg.fields[1].name = "y";
-        conesDetectedMsg.fields[1].offset = 4;
-        conesDetectedMsg.fields[1].datatype = 7;
-        conesDetectedMsg.fields[1].count = 1;
-
-        conesDetectedMsg.fields[2].name = "z";
-        conesDetectedMsg.fields[2].offset = 8;
-        conesDetectedMsg.fields[2].datatype = 7;
-        conesDetectedMsg.fields[2].count = 1;
     }
     if(publishFilteredPcl){
         //DEBUG1
@@ -356,8 +329,6 @@ void OusterDriver::handleLidarScan(){
             if(processReturnFlag == 0) {
                 RCLCPP_INFO(this->get_logger(), "Filtered ground PCL size = %d\n", pointcloudProcessor.getNonGroundPoints());
                 RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
-                if(publishCones)
-                    publishDetectedCones(0.0, 0.0, 0.0);
                 if(publishFilteredPcl)
                     publishFilteredPointcloud(pointcloudProcessor.getCart(), pointcloudProcessor.getIntensitiesFiltered());
             }
@@ -380,25 +351,6 @@ void OusterDriver::handleLidarScan(){
         }
     }
 
-}
-
-
-void OusterDriver::publishDetectedCones(double xPos, double yPos, double yaw){
-    Eigen::Matrix<float, Eigen::Dynamic, 1> xCones(conePos.rows()), yCones(conePos.rows());
-    xCones = (conePos.col(0).array() * std::cos(yaw) - conePos.col(1).array()*std::sin(yaw) + xPos).matrix();
-    yCones = (conePos.col(0).array() * std::sin(yaw) - conePos.col(1).array()*std::cos(yaw) + yPos).matrix();
-
-    conesDetectedMsg.width = conePos.rows();
-    conesDetectedMsg.height = 1;
-    conesDetectedMsg.row_step = conesDetectedMsg.width * conesDetectedMsg.point_step;
-    conesDetectedMsg.data.resize(conesDetectedMsg.row_step);
-    uint8_t* ptr = conesDetectedMsg.data.data();
-    for(int i = 0; i < xCones.size(); i++){
-        *((float*)(ptr + i*conesDetectedMsg.point_step)) = xCones(i);
-        *((float*)(ptr + i*conesDetectedMsg.point_step + 4)) = yCones(i);
-        *((float*)(ptr+ i*conesDetectedMsg.point_step + 8)) = 0.0; 
-    } 
-    conesDetectedPublisher->publish(conesDetectedMsg);
 }
 
 
