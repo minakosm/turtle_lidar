@@ -383,6 +383,8 @@ void OusterDriver::publishFilteredPointcloud(Eigen::Matrix<float, Eigen::Dynamic
         *((uint32_t*)(ptr + i*filteredPointcloudMsg.point_step + 12)) = (uint32_t)(times_process_buffer[i / height] / 1e+6);
         *((uint16_t*)(ptr + i*filteredPointcloudMsg.point_step + 16)) = intensitiesFiltered(i);
     }
+    // auto pcl_msg = groundremovalfunc(filteredPoincloudMsg);
+    // filteredPointcloudPublisher->publish(pcl_msg);
     filteredPointcloudPublisher->publish(filteredPointcloudMsg);
 }
 
