@@ -27,6 +27,9 @@ class PointcloudProcessing {
         std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic,1>> intensities, intensitiesBuffer, intensitiesFiltered;
         std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>> cart;
 
+        std::unique_ptr<Eigen::Matrix <float, Eigen::Dynamic, 3, Eigen::RowMajor>> baseFilteredPoints;
+        std::unique_ptr<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>> baseIntensities;
+
         Eigen::Matrix <uint8_t, Eigen::Dynamic, 2, Eigen::RowMajor> partitionMatrix;
         Eigen::Matrix <int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> prototypePointsMatrix;
         Lines lines;
@@ -59,6 +62,10 @@ class PointcloudProcessing {
         Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> getIntensities();
         Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> getCart();
         Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> getIntensitiesFiltered();
+
+        Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> getBasePoints();
+        Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> getBaseIntensities();
+        
         int getNonGroundPoints();
         BaseFilter getBaseFilterSettings();
         GroundFilter getGroundFilterSettings();

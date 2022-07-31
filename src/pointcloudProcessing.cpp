@@ -32,6 +32,9 @@ intensitiesBuffer = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>
 intensitiesFiltered = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>();
 
 cart = std::make_unique<Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>>();
+
+baseFilteredPoints = std::make_unique<Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>>();
+baseIntensities = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>();
 }
 
 
@@ -57,6 +60,9 @@ intensitiesBuffer = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>
 intensitiesFiltered = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(pclSize);
 
 cart = std::make_unique<Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>>(pclSize, 3);
+
+baseFilteredPoints = std::make_unique<Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>>(pclSize, 3);
+baseIntensities = std::make_unique<Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>>(pclSize);
 }
 
 void PointcloudProcessing::resizeCoordinates(int pclSize){
@@ -107,6 +113,14 @@ Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> PointcloudProcessing::g
     return (*cart);
 }
 
+Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> PointcloudProcessing::getBasePoints(){
+    return (*baseFilteredPoints);
+}
+
+Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> PointcloudProcessing::getBaseIntensities(){
+    return (*baseIntensities);
+}
+
 int PointcloudProcessing::getNonGroundPoints(){
     return cart->rows();
 }
@@ -155,6 +169,9 @@ bool PointcloudProcessing::filterPoints(const Eigen::Array <bool, Eigen::Dynamic
     r->resize(size);
     intensities->resize(size);
 
+    baseFilteredPoints->resize(size,3);
+    baseIntensities->resize(size);
+
     unsigned int counter = 0;
     for(unsigned int i=0; i < xBuffer->rows(); i++){
         if(logicalVector(i) == 0){
@@ -163,7 +180,12 @@ bool PointcloudProcessing::filterPoints(const Eigen::Array <bool, Eigen::Dynamic
             (*z)(counter) = (*zBuffer)(i);
             (*azim)(counter) = (*azimBuffer)(i);
             (*r)(counter) = (*rBuffer)(i);
-            (*intensities)(counter++) = (*intensitiesBuffer)(i);
+            (*intensities)(counter) = (*intensitiesBuffer)(i);
+
+            (*baseFilteredPoints)(counter,0) = (*xBuffer)(i);
+            (*baseFilteredPoints)(counter,1) = (*yBuffer)(i);
+            (*baseFilteredPoints)(counter,2) = (*zBuffer)(i);
+            (*baseIntensities)(counter++) = (*intensitiesBuffer)(i);
         }
     }
     return true;

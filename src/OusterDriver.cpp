@@ -103,6 +103,7 @@ void OusterDriver::readSettingsFromINI(std::string pathToIniFile){
     timeoutProcessing = pt.get<int>("Lidar.timeoutProcessing");
 
     publishFilteredPcl = pt.get<bool>("Lidar.publishFilteredPcl");
+    publishBaseFilteredPcl = pt.get<bool>("Lidar.publishBaseFilteredPcl");
 }
 
 int OusterDriver::runDriver(){
@@ -197,8 +198,7 @@ void OusterDriver::initializePublishers(){
         rawPointcloudMsg.data.resize(rawPointcloudMsg.point_step * width * height);
     }
     if(publishFilteredPcl){
-        //DEBUG1
-        RCLCPP_INFO(this->get_logger(),"debug1");
+
         filteredPointcloudPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/filteredPointcloud", sensorQos);
 
         filteredPointcloudMsg.header.frame_id = "os1";
@@ -236,6 +236,46 @@ void OusterDriver::initializePublishers(){
         filteredPointcloudMsg.fields[4].offset = 16;
         filteredPointcloudMsg.fields[4].datatype = 4;
         filteredPointcloudMsg.fields[4].count = 1;
+    }
+    if(publishBaseFilteredPcl){
+
+        baseFilteredPointcloudPublisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/baseFilteredPointcloud", sensorQos);
+
+        baseFilteredPointcloudMsg.header.frame_id = "os1";
+
+        baseFilteredPointcloudMsg.height = 1;
+        
+        baseFilteredPointcloudMsg.is_bigendian = false;
+        baseFilteredPointcloudMsg.is_dense = true;
+        baseFilteredPointcloudMsg.point_step = 18;
+
+
+        baseFilteredPointcloudMsg.fields.resize(5); //x, y, z, t, intensity
+        
+        baseFilteredPointcloudMsg.fields[0].name = "x";
+        baseFilteredPointcloudMsg.fields[0].offset = 0;
+        baseFilteredPointcloudMsg.fields[0].datatype = 7;
+        baseFilteredPointcloudMsg.fields[0].count = 1;
+
+        baseFilteredPointcloudMsg.fields[1].name = "y";
+        baseFilteredPointcloudMsg.fields[1].offset = 4;
+        baseFilteredPointcloudMsg.fields[1].datatype = 7;
+        baseFilteredPointcloudMsg.fields[1].count = 1;
+
+        baseFilteredPointcloudMsg.fields[2].name = "z";
+        baseFilteredPointcloudMsg.fields[2].offset = 8;
+        baseFilteredPointcloudMsg.fields[2].datatype = 7;
+        baseFilteredPointcloudMsg.fields[2].count = 1;
+
+        baseFilteredPointcloudMsg.fields[3].name = "t";
+        baseFilteredPointcloudMsg.fields[3].offset = 12;
+        baseFilteredPointcloudMsg.fields[3].datatype = 6;
+        baseFilteredPointcloudMsg.fields[3].count = 1;
+
+        baseFilteredPointcloudMsg.fields[4].name = "intensity";
+        baseFilteredPointcloudMsg.fields[4].offset = 16;
+        baseFilteredPointcloudMsg.fields[4].datatype = 4;
+        baseFilteredPointcloudMsg.fields[4].count = 1;
     }
 
 }
@@ -329,6 +369,8 @@ void OusterDriver::handleLidarScan(){
             if(processReturnFlag == 0) {
                 RCLCPP_INFO(this->get_logger(), "Filtered ground PCL size = %d\n", pointcloudProcessor.getNonGroundPoints());
                 RCLCPP_INFO(this->get_logger(), "Found %u cones", conePos.rows());
+                if(publishBaseFilteredPcl)
+                    publishBaseFilteredPointcloud(pointcloudProcessor.getBasePoints(), pointcloudProcessor.getBaseIntensities());
                 if(publishFilteredPcl)
                     publishFilteredPointcloud(pointcloudProcessor.getCart(), pointcloudProcessor.getIntensitiesFiltered());
             }
@@ -365,6 +407,27 @@ void OusterDriver::publishRawPointcloud(){
         *((uint16_t*)(ptr + i*rawPointcloudMsg.point_step + 16)) = intensities_process_buffer[i];
     }
     rawPointcloudPublisher->publish(rawPointcloudMsg);
+}
+
+void OusterDriver::publishBaseFilteredPointcloud(Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> baseFilteredPoints , Eigen::Matrix<uint16_t, Eigen::Dynamic,1> baseIntensitiesFiltered){
+    baseFilteredPointcloudMsg.width = baseFilteredPoints.rows();
+    baseFilteredPointcloudMsg.row_step = baseFilteredPointcloudMsg.width * baseFilteredPointcloudMsg.point_step;
+
+    baseFilteredPointcloudMsg.data.resize(baseFilteredPointcloudMsg.row_step);
+
+    uint8_t* ptr = baseFilteredPointcloudMsg.data.data();
+    baseFilteredPointcloudMsg.header.stamp = rclcpp::Node::now();
+
+    for(int i = 0; i < baseFilteredPoints.rows(); i++){
+        *((float*)(ptr +i*baseFilteredPointcloudMsg.point_step)) = (baseFilteredPoints)(i, 0);
+        *((float*)(ptr +i*baseFilteredPointcloudMsg.point_step + 4)) = (baseFilteredPoints)(i, 1);
+        *((float*)(ptr +i*baseFilteredPointcloudMsg.point_step + 8)) = (baseFilteredPoints)(i, 2);
+        *((uint32_t*)(ptr + i*baseFilteredPointcloudMsg.point_step + 12)) = (uint32_t)(times_process_buffer[i / height] / 1e+6);
+        *((uint16_t*)(ptr + i*baseFilteredPointcloudMsg.point_step + 16)) = baseIntensitiesFiltered(i);
+    }
+    // auto pcl_msg = groundremovalfunc(filteredPoincloudMsg);
+    // filteredPointcloudPublisher->publish(pcl_msg);
+    baseFilteredPointcloudPublisher->publish(baseFilteredPointcloudMsg);
 }
 
 void OusterDriver::publishFilteredPointcloud(Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> filteredPoints, Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> intensitiesFiltered){

@@ -74,6 +74,9 @@ class OusterDriver : public rclcpp::Node{
         sensor_msgs::msg::PointCloud2 filteredPointcloudMsg;
         bool publishFilteredPcl;
 
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr baseFilteredPointcloudPublisher;
+        sensor_msgs::msg::PointCloud2 baseFilteredPointcloudMsg;
+        bool publishBaseFilteredPcl;
     
         std::mutex pclProcessorMutex;
         int maxPointsProcessing, timeoutProcessing;
@@ -92,5 +95,6 @@ class OusterDriver : public rclcpp::Node{
         void handleLidar();
         void handleLidarScan();
         void publishRawPointcloud();   
-        void publishFilteredPointcloud(Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor> filteredPoints, Eigen::Matrix<uint16_t, Eigen::Dynamic, 1> intensitiesFiltered);
+        void publishBaseFilteredPointcloud(Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>, Eigen::Matrix<uint16_t, Eigen::Dynamic,1>);
+        void publishFilteredPointcloud(Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>, Eigen::Matrix<uint16_t, Eigen::Dynamic, 1>);
 };
